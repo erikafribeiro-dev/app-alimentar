@@ -352,7 +352,18 @@ code{background:#EDE7D8;padding:1px 6px;border-radius:6px;font-size:12px;
           <input id="fileCamera" type="file" accept="image/*" capture="environment" />
           <input id="fileGallery" type="file" accept="image/*" />
         </div>
-        <div style="height:18px"></div>
+        <div style="height:14px"></div>
+        <div style="display:flex;gap:12px;margin-bottom:14px">
+          <div style="flex:1">
+            <label for="commentInput">Comentário (opcional)</label>
+            <textarea id="commentInput" placeholder="Escreva ou grave um áudio" style="width:100%;padding:13px 15px;font-size:14px;border:1.5px solid var(--line);border-radius:var(--r-sm);background:#FCFBF8;color:var(--ink);outline:none;font-family:var(--sans);min-height:70px;resize:vertical;transition:border-color .18s,box-shadow .18s" onfocus="this.style.borderColor='var(--pine-mid)';this.style.boxShadow='0 0 0 3px rgba(36,83,74,.1)'" onblur="this.style.borderColor='var(--line)';this.style.boxShadow='none'"></textarea>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:8px;justify-content:flex-end">
+            <button class="btn sm" id="recordBtn" type="button" style="background:var(--pine-soft);color:var(--pine);box-shadow:none;border:1.5px solid var(--line)">🎤</button>
+            <button class="btn sm ghost" id="stopBtn" type="button" style="display:none">⏹</button>
+            <div id="recordStatus" style="text-align:center;font-size:12px;color:var(--ink-soft);min-height:20px"></div>
+          </div>
+        </div>
         <button class="btn honey" id="sendBtn" type="button" disabled><span class="lbl">Enviar refeição</span></button>
       </div>
 
@@ -395,10 +406,10 @@ code{background:#EDE7D8;padding:1px 6px;border-radius:6px;font-size:12px;
       <h2 class="sm">Configuração</h2>
       <p class="lead">Cole as chaves do seu projeto Supabase. Tudo fica salvo neste navegador.</p>
       <label>Project URL</label>
-      <input id="cfgUrl" type="text" placeholder="https://xxxx.supabase.co" />
+      <input id="cfgUrl" type="text" placeholder="https://xxxx.supabase.co" value="https://mxjamzrsosraqxvgybwu.supabase.co" />
       <div style="height:12px"></div>
       <label>Publishable Key</label>
-      <input id="cfgKey" type="text" placeholder="sb_publishable_..." />
+      <input id="cfgKey" type="text" placeholder="sb_publishable_..." value="sb_publishable_j54wGA2ENct0U6VPJ78aWw_VzWDkKEL" />
       <div style="height:12px"></div>
       <label>Código de acesso dos participantes</label>
       <input id="cfgCode" type="text" placeholder="ex.: DIARIO2026" value="DIARIO2026" />
@@ -426,6 +437,8 @@ create table if not exists public.registros (
   participante_nome text not null,
   refeicao          text not null,
   foto_path         text not null,
+  audio_path        text,
+  comentario        text,
   criado_em         timestamptz not null default now()
 );
 create index if not exists idx_registros_participante
@@ -524,7 +537,8 @@ function compressImage(file,maxDim,q){return new Promise(res=>{
 /* ============ SESSION ============ */
 function saveParticipant(p){try{localStorage.setItem("diario_participant",JSON.stringify(p))}catch(e){}}
 function loadParticipant(){try{const r=localStorage.getItem("diario_participant");return r?JSON.parse(r):null}catch(e){return null}}
-let participant=null,chosenMeal=null,chosenFile=null;
+let participant=null,chosenMeal=null,chosenFile=null,chosenComment="",chosenAudio=null;
+let mediaRecorder=null,audioChunks=[];
 
 /* ============ LOGIN ============ */
 async function enter(){
@@ -561,15 +575,41 @@ async function onFile(e){let f=e.target.files[0];if(!f)return;hideAS();
   $("shootLabel").querySelector(".ic").textContent="🔄";
   $("shootLabel").querySelector(".shoot-text").textContent="Trocar foto";refreshSend()}
 function refreshSend(){$("sendBtn").disabled=!(chosenMeal&&chosenFile)}
-function resetForm(){chosenMeal=null;chosenFile=null;
+function resetForm(){chosenMeal=null;chosenFile=null;chosenComment="";chosenAudio=null;
   document.querySelectorAll(".meal").forEach(m=>m.classList.remove("sel"));
   const pv=$("preview");pv.src="";pv.classList.add("hidden");
   $("fileCamera").value="";$("fileGallery").value="";
+  $("commentInput").value="";
+  $("recordStatus").textContent="";
+  $("recordBtn").style.display="inline-flex";
+  $("stopBtn").style.display="none";
   $("shootLabel").querySelector(".ic").textContent="📷";
   $("shootLabel").querySelector(".shoot-text").textContent="Fotografar a comida";refreshSend()}
 function setLoading(btn,on){const l=btn.querySelector(".lbl");
   if(on){btn._txt=l?l.textContent:"";btn.disabled=true;btn.innerHTML='<span class="spin"></span>'}
   else{btn.disabled=false;btn.innerHTML='<span class="lbl">'+(btn._txt||"")+"</span>"}}
+
+/* ============ AUDIO RECORDING ============ */
+async function startRecording(){
+  try{
+    const stream=await navigator.mediaDevices.getUserMedia({audio:true});
+    audioChunks=[];
+    mediaRecorder=new MediaRecorder(stream,{mimeType:"audio/webm"});
+    mediaRecorder.ondataavailable=e=>audioChunks.push(e.data);
+    mediaRecorder.onstop=()=>{
+      const blob=new Blob(audioChunks,{type:"audio/webm"});
+      chosenAudio={blob,name:uid()+".webm"};
+      $("recordStatus").textContent="✓ Áudio pronto";
+      $("recordBtn").style.display="inline-flex";
+      $("stopBtn").style.display="none";
+      stream.getTracks().forEach(t=>t.stop())
+    };
+    mediaRecorder.start();
+    $("recordBtn").style.display="none";
+    $("stopBtn").style.display="inline-flex";
+    $("recordStatus").textContent="Gravando...";
+  }catch(e){toast("Permissão de microfone negada",true)}}
+function stopRecording(){if(mediaRecorder&&mediaRecorder.state==="recording"){mediaRecorder.stop()}}
 
 /* ============ GOOGLE DRIVE ============ */
 async function uploadToDrive(file,pName,meal,dateStr){
@@ -593,8 +633,9 @@ async function uploadToDrive(file,pName,meal,dateStr){
 /* ============ SEND ============ */
 async function send(){
   if(!chosenMeal||!chosenFile)return;const btn=$("sendBtn");
+  chosenComment=$("commentInput").value.trim();
   if(!supa){setLoading(btn,true);await new Promise(r=>setTimeout(r,600));
-    storeLocal({meal:chosenMeal,time:new Date().toISOString(),url:URL.createObjectURL(chosenFile),demo:true});
+    storeLocal({meal:chosenMeal,time:new Date().toISOString(),url:URL.createObjectURL(chosenFile),comment:chosenComment,audioUrl:chosenAudio?URL.createObjectURL(chosenAudio.blob):null,demo:true});
     setLoading(btn,false);toast("Registrado! (modo demonstração)");resetForm();loadToday();return}
   setLoading(btn,true);
   try{const ext=(chosenFile.name.split(".").pop()||"jpg").toLowerCase();
@@ -603,10 +644,16 @@ async function send(){
     const up=await supa.storage.from("refeicoes").upload(path,buf,{cacheControl:"3600",upsert:false,contentType:chosenFile.type||"image/jpeg"});
     if(up.error)throw up.error;
     const now=new Date().toISOString();
-    const row={participante_id:participant.id,participante_nome:participant.name,refeicao:chosenMeal,foto_path:path,criado_em:now};
+    let audioPath=null;
+    if(chosenAudio){
+      const audioUpPath=participant.id+"/"+todayKey()+"/"+chosenAudio.name;
+      const audioUp=await supa.storage.from("refeicoes").upload(audioUpPath,chosenAudio.blob,{cacheControl:"3600",upsert:false,contentType:"audio/webm"});
+      if(!audioUp.error)audioPath=audioUpPath}
+    const row={participante_id:participant.id,participante_nome:participant.name,refeicao:chosenMeal,foto_path:path,audio_path:audioPath||null,comentario:chosenComment||null,criado_em:now};
     const ins=await supa.from("registros").insert(row);if(ins.error)throw ins.error;
     const{data:pub}=supa.storage.from("refeicoes").getPublicUrl(path);
-    storeLocal({meal:chosenMeal,time:now,url:pub?.publicUrl||""});
+    let audioUrl=null;if(audioPath){const{data:apub}=supa.storage.from("refeicoes").getPublicUrl(audioPath);audioUrl=apub?.publicUrl||null}
+    storeLocal({meal:chosenMeal,time:now,url:pub?.publicUrl||"",comment:chosenComment,audioUrl});
     uploadToDrive(chosenFile,participant.name,chosenMeal,now);
     toast("Foto registrada. Obrigado!");resetForm();loadToday()
   }catch(e){console.error(e);toast("Não foi possível enviar. Verifique a conexão.",true)}
@@ -623,8 +670,10 @@ function loadToday(){
   if(!arr.length){list.innerHTML='<div class="empty">O primeiro registro do dia aparece aqui.</div>'}
   else{list.innerHTML='<div class="tl">'+arr.map(it=>
     '<div class="tl-item"><img src="'+it.url+'" alt=""><div class="meta"><b>'+it.meal+
-    "</b><small>"+fmtTime(new Date(it.time))+(it.demo?" · demonstração":"")+
-    '</small></div><div class="ok">✓</div></div>').join("")+"</div>"}
+    "</b><small>"+fmtTime(new Date(it.time))+(it.demo?" · demonstração":"")+"</small>"+
+    (it.comment?'<small style="display:block;margin-top:5px;color:var(--ink-soft);font-style:italic">'+esc(it.comment)+'</small>':'')+
+    (it.audioUrl?'<audio src="'+it.audioUrl+'" controls style="display:block;margin-top:8px;width:100%;max-height:28px;border-radius:6px"></audio>':'')+
+    '</div><div class="ok">✓</div></div>').join("")+"</div>"}
   // arc
   const done=new Set(arr.map(i=>i.meal));
   let doneCount=0;
@@ -644,7 +693,8 @@ async function adminLoad(){
   try{const{data:s}=await supa.auth.getSession();if(!s.session)await supa.auth.signInAnonymously().catch(()=>{});
     const{data,error}=await supa.from("registros").select("*").order("criado_em",{ascending:false});
     if(error)throw error;adminRows=data||[];
-    adminRows.forEach(r=>{const{data:p}=supa.storage.from("refeicoes").getPublicUrl(r.foto_path);r._url=p?.publicUrl||""});
+    adminRows.forEach(r=>{const{data:p}=supa.storage.from("refeicoes").getPublicUrl(r.foto_path);r._url=p?.publicUrl||"";
+      if(r.audio_path){const{data:ap}=supa.storage.from("refeicoes").getPublicUrl(r.audio_path);r._audioUrl=ap?.publicUrl||""}});
     adminRender()
   }catch(e){console.error(e);$("adminList").innerHTML='<div class="empty">Erro ao carregar. Verifique a configuração.</div>'}}
 function adminRender(){
@@ -663,9 +713,9 @@ function adminRender(){
     gr.items.map(it=>'<div class="shot"><img src="'+it._url+'" loading="lazy" data-zoom="'+it._url+
     '" alt=""><div class="cap"><b>'+esc(it.refeicao)+"</b><small>"+fmtDT(it.criado_em)+
     "</small></div></div>").join("")+"</div></div>"}).join("")}
-function exportCSV(){const h=["nome","id","refeicao","data_hora","foto_url"];
-  const ls=[h.join(",")].concat(adminRows.map(r=>['"'+(r.participante_nome||"").replace(/"/g,'""')+'"',
-    r.participante_id,'"'+r.refeicao+'"',r.criado_em,r._url].join(",")));
+function exportCSV(){const h=["nome","id","refeicao","data_hora","comentario","audio_url","foto_url"];
+  const ls=[h.join(",")].concat(adminRows.map(r=>{const{data:apu}=supa.storage.from("refeicoes").getPublicUrl(r.audio_path);return['"'+(r.participante_nome||"").replace(/"/g,'""')+'"',
+    r.participante_id,'"'+r.refeicao+'"',r.criado_em,'"'+(r.comentario||"").replace(/"/g,'""')+'"',r.audio_path?apu?.publicUrl||"":"",r._url].join(",")}));
   const b=new Blob([ls.join("\n")],{type:"text/csv;charset=utf-8"});
   const a=document.createElement("a");a.href=URL.createObjectURL(b);
   a.download="diario_"+todayKey()+".csv";a.click()}
@@ -710,6 +760,8 @@ function init(){
   $("adminSearch").addEventListener("input",adminRender);
   $("refreshBtn").addEventListener("click",adminLoad);
   $("csvBtn").addEventListener("click",exportCSV);
+  $("recordBtn").addEventListener("click",startRecording);
+  $("stopBtn").addEventListener("click",stopRecording);
   $("adminList").addEventListener("click",e=>{const z=e.target.closest("[data-zoom]");
     if(z){$("lbImg").src=z.dataset.zoom;$("lb").classList.add("on")}});
   $("lb").addEventListener("click",()=>$("lb").classList.remove("on"));
