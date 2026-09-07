@@ -81,11 +81,15 @@ h2.sm{font-size:19px}
 .lead{color:var(--ink-soft);margin:0 0 20px;font-size:14.5px}
 label{display:block;font-weight:600;font-size:13px;margin:0 0 7px;
   letter-spacing:.2px;color:var(--pine-mid)}
-input[type=text],input[type=password],input[type=email]{
+input[type=text],input[type=password],input[type=email],input[type=number],select,textarea.ta{
   width:100%;padding:15px 16px;font-size:16px;border:1.5px solid var(--line);
   border-radius:var(--r-sm);background:#FCFBF8;color:var(--ink);outline:none;
   font-family:var(--sans);transition:border-color .18s,box-shadow .18s}
-input:focus{border-color:var(--pine-mid);box-shadow:0 0 0 3px rgba(36,83,74,.1)}
+input:focus,select:focus,textarea.ta:focus{border-color:var(--pine-mid);box-shadow:0 0 0 3px rgba(36,83,74,.1)}
+textarea.ta{min-height:72px;resize:vertical;font-family:var(--sans)}
+.linkbtn{background:none;border:0;color:var(--pine-mid);font-weight:600;font-size:13px;cursor:pointer;padding:6px 0;font-family:var(--sans)}
+.linkbtn:hover{text-decoration:underline}
+.person-h .prof{display:block;color:var(--ink-soft);font-size:12px;font-weight:500;margin-top:3px}
 
 /* ---------- buttons ---------- */
 .btn{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;
@@ -305,6 +309,42 @@ code{background:#EDE7D8;padding:1px 6px;border-radius:6px;font-size:12px;
         Você vê apenas as suas próprias fotos.</p>
     </section>
 
+    <section id="screen-profile" class="hidden">
+      <div class="card rise">
+        <h2 class="sm">Sobre quem vai participar</h2>
+        <p class="lead">Poucas perguntas para a equipe entender melhor cada diário. Leva um minuto e você pode alterar depois.</p>
+        <label for="pfNome">Nome ou apelido da pessoa autista</label>
+        <input id="pfNome" type="text" placeholder="Como ela é chamada em casa" />
+        <div style="height:12px"></div>
+        <label for="pfIdade">Idade (anos)</label>
+        <input id="pfIdade" type="number" min="0" max="120" inputmode="numeric" placeholder="ex.: 7" />
+        <div style="height:12px"></div>
+        <label for="pfResp">Quem está preenchendo o diário?</label>
+        <select id="pfResp">
+          <option value="">Selecione…</option>
+          <option>Mãe</option><option>Pai</option><option>Outro responsável / cuidador</option>
+          <option>A própria pessoa</option><option>Profissional (escola, terapia)</option>
+        </select>
+        <div style="height:12px"></div>
+        <label for="pfDiag">Diagnóstico (opcional)</label>
+        <select id="pfDiag">
+          <option value="">Prefiro não informar</option>
+          <option>TEA — nível 1 de suporte</option><option>TEA — nível 2 de suporte</option>
+          <option>TEA — nível 3 de suporte</option><option>TEA — nível não informado</option>
+          <option>Em avaliação</option>
+        </select>
+        <div style="height:12px"></div>
+        <label for="pfRestr">Seletividade, alergias ou restrições alimentares (opcional)</label>
+        <textarea id="pfRestr" class="ta" placeholder="ex.: só aceita alimentos crocantes; alergia a leite; não mistura comidas no prato"></textarea>
+        <div style="height:12px"></div>
+        <label for="pfContato">Contato para a equipe (opcional)</label>
+        <input id="pfContato" type="text" placeholder="e-mail ou WhatsApp" autocomplete="off" />
+        <div style="height:18px"></div>
+        <button class="btn" id="pfSaveBtn" type="button"><span class="lbl">Salvar e começar</span></button>
+        <div style="text-align:center;margin-top:10px"><button class="linkbtn" id="pfBackBtn" type="button">← Voltar</button></div>
+      </div>
+    </section>
+
     <section id="screen-app" class="hidden">
 
       <!-- SIGNATURE: arco do dia -->
@@ -372,16 +412,16 @@ code{background:#EDE7D8;padding:1px 6px;border-radius:6px;font-size:12px;
 
       <div class="tl-h"><h3>O dia até agora</h3><span id="todayCount">0 fotos</span></div>
       <div id="todayList"><div class="empty">O primeiro registro do dia aparece aqui.</div></div>
-      <p class="footnote"><a href="#" id="logoutLink">Sair / trocar de pessoa</a></p>
+      <p class="footnote"><a href="#" id="editProfileLink">Editar perfil</a> &nbsp;·&nbsp; <a href="#" id="logoutLink">Sair / trocar de pessoa</a></p>
     </section>
   </div>
 
   <!-- ================= PESQUISADOR ================= -->
   <div id="tab-pesquisador" class="hidden">
     <section id="admin-auth">
-      <div class="card">
+      <div class="card" id="admin-login-card">
         <h2 class="sm">Área do pesquisador</h2>
-        <p class="lead">Acesso restrito à equipe da pesquisa. Entre com o e-mail e a senha cadastrados no Supabase.</p>
+        <p class="lead">Acesso restrito à equipe da pesquisa.</p>
         <label for="adminEmail">E-mail</label>
         <input id="adminEmail" type="email" placeholder="voce@exemplo.com" autocomplete="username" enterkeyhint="next" />
         <div style="height:12px"></div>
@@ -389,6 +429,29 @@ code{background:#EDE7D8;padding:1px 6px;border-radius:6px;font-size:12px;
         <input id="adminPw" type="password" placeholder="••••••••" autocomplete="current-password" enterkeyhint="go" />
         <div style="height:14px"></div>
         <button class="btn" id="adminLoginBtn" type="button"><span class="lbl">Entrar</span></button>
+        <div style="text-align:center;margin-top:12px"><button class="linkbtn" id="showSignupBtn" type="button">Sou da equipe e ainda não tenho conta</button></div>
+      </div>
+
+      <div class="card hidden" id="admin-signup-card">
+        <h2 class="sm">Cadastro de pesquisador</h2>
+        <p class="lead">Crie sua conta com o <b>código de cadastro</b> fornecido pela coordenação da pesquisa.</p>
+        <label for="suEmail">E-mail</label>
+        <input id="suEmail" type="email" placeholder="voce@exemplo.com" autocomplete="username" />
+        <div style="height:12px"></div>
+        <label for="suNome">Nome</label>
+        <input id="suNome" type="text" placeholder="Como quer ser identificado(a)" autocomplete="name" />
+        <div style="height:12px"></div>
+        <label for="suPw">Senha (mínimo 8 caracteres)</label>
+        <input id="suPw" type="password" placeholder="••••••••" autocomplete="new-password" />
+        <div style="height:12px"></div>
+        <label for="suPw2">Confirmar senha</label>
+        <input id="suPw2" type="password" placeholder="••••••••" autocomplete="new-password" />
+        <div style="height:12px"></div>
+        <label for="suCode">Código de cadastro</label>
+        <input id="suCode" type="password" placeholder="fornecido pela coordenação" autocomplete="off" />
+        <div style="height:16px"></div>
+        <button class="btn" id="signupBtn" type="button"><span class="lbl">Criar conta</span></button>
+        <div style="text-align:center;margin-top:12px"><button class="linkbtn" id="showLoginBtn" type="button">← Já tenho conta</button></div>
       </div>
     </section>
     <section id="admin-dash" class="hidden">
@@ -431,9 +494,13 @@ code{background:#EDE7D8;padding:1px 6px;border-radius:6px;font-size:12px;
           Todas as famílias usam este código junto com o link. Para trocá-lo, edite a constante
           <code>DEFAULT_ACCESS_CODE</code> no arquivo e publique novamente.</p>
         <p style="margin:0 0 6px"><b>Pesquisadores:</b></p>
-        <p style="font-size:13px;color:var(--ink-soft);margin:0;line-height:1.5">
-          Cada pesquisador tem e-mail e senha próprios, criados no Supabase em
-          <b>Authentication → Users → Add user</b> (marque <i>Auto Confirm User</i>). A senha nunca fica gravada neste app.</p>
+        <p style="font-size:13px;color:var(--ink-soft);margin:0 0 12px;line-height:1.5">
+          Cada pesquisador cria a própria conta na tela "Cadastro de pesquisador" usando o código abaixo.
+          O código é verificado no servidor e nunca fica gravado neste app.</p>
+        <label for="cfgRegCode">Novo código de cadastro de pesquisadores</label>
+        <input id="cfgRegCode" type="text" placeholder="deixe vazio para manter o atual" autocomplete="off" />
+        <div style="height:12px"></div>
+        <button class="btn sm" id="cfgRegCodeBtn" type="button"><span class="lbl">Trocar código</span></button>
       </div>
 
     <div class="card">
@@ -443,13 +510,110 @@ code{background:#EDE7D8;padding:1px 6px;border-radius:6px;font-size:12px;
 -- DIÁRIO ALIMENTAR — Supabase (seguro para rodar mais de uma vez)
 -- ============================================================
 -- Modelo de acesso:
---   • Participantes entram com login ANÔNIMO: podem gravar registros
---     e ler apenas os próprios.
---   • Pesquisadores entram com E-MAIL + SENHA (Authentication → Users):
---     leem tudo. A senha fica no Supabase, nunca no app.
+--   • Participantes entram com login ANÔNIMO + código de acesso do app.
+--     Gravam registros e o próprio perfil; leem apenas o que é seu.
+--   • Pesquisadores criam conta no app (e-mail + senha + CÓDIGO DE CADASTRO).
+--     O código é validado AQUI no banco, por gatilho — nunca no app.
+--     Só quem está na tabela `pesquisadores` lê tudo.
 -- ============================================================
 
--- 1) Tabela
+-- 0) Configuração do app (código de cadastro de pesquisadores)
+create table if not exists public.config_app (
+  chave text primary key,
+  valor text not null
+);
+alter table public.config_app enable row level security;   -- sem policies: ninguém lê via API
+insert into public.config_app (chave, valor)
+values ('codigo_cadastro_pesquisador', 'DEFINA_UM_CODIGO_AQUI')   -- ← troque antes de rodar
+on conflict (chave) do nothing;                              -- não sobrescreve se você já trocou
+
+-- 1) Pesquisadores autorizados
+create table if not exists public.pesquisadores (
+  user_id   uuid primary key references auth.users(id) on delete cascade,
+  email     text,
+  nome      text,
+  criado_em timestamptz not null default now()
+);
+alter table public.pesquisadores enable row level security;
+drop policy if exists "pesquisador_ve_lista" on public.pesquisadores;
+create policy "pesquisador_ve_lista" on public.pesquisadores
+  for select to authenticated using (public.is_pesquisador());
+
+-- 2) Função: a sessão atual é de um pesquisador autorizado?
+create or replace function public.is_pesquisador()
+returns boolean language sql stable security definer set search_path = public as $$
+  select exists (select 1 from public.pesquisadores where user_id = auth.uid())
+$$;
+
+-- 3) Gatilho: ao criar usuário com código de cadastro válido → vira pesquisador.
+--    Código errado → o cadastro é recusado.
+create or replace function public.tg_novo_usuario()
+returns trigger language plpgsql security definer set search_path = public as $$
+declare
+  codigo   text := new.raw_user_meta_data -&gt;&gt; 'codigo_cadastro';
+  esperado text;
+begin
+  if codigo is null then return new; end if;                -- login anônimo ou usuário criado no painel
+  select valor into esperado from public.config_app where chave = 'codigo_cadastro_pesquisador';
+  if esperado is null or codigo &lt;&gt; esperado then
+    raise exception 'codigo_cadastro invalido';
+  end if;
+  insert into public.pesquisadores (user_id, email, nome)
+  values (new.id, new.email, new.raw_user_meta_data -&gt;&gt; 'nome')
+  on conflict (user_id) do nothing;
+  return new;
+end $$;
+drop trigger if exists on_auth_user_created on auth.users;
+create trigger on_auth_user_created
+  after insert on auth.users for each row execute function public.tg_novo_usuario();
+
+-- 4) Pesquisador pode trocar o código de cadastro pelo app
+create or replace function public.definir_codigo_cadastro(novo text)
+returns void language plpgsql security definer set search_path = public as $$
+begin
+  if not public.is_pesquisador() then raise exception 'nao autorizado'; end if;
+  if length(coalesce(novo,'')) &lt; 6 then raise exception 'codigo muito curto'; end if;
+  insert into public.config_app (chave, valor) values ('codigo_cadastro_pesquisador', novo)
+  on conflict (chave) do update set valor = excluded.valor;
+end $$;
+revoke all on function public.definir_codigo_cadastro(text) from public;
+grant execute on function public.definir_codigo_cadastro(text) to authenticated;
+
+-- 5) Perfil dos participantes
+create table if not exists public.participantes (
+  participante_id  text primary key,
+  auth_uid         uuid default auth.uid(),
+  nome_responsavel text,
+  nome_pessoa      text,
+  idade            int,
+  responsavel      text,
+  diagnostico      text,
+  restricoes       text,
+  contato          text,
+  criado_em        timestamptz not null default now(),
+  atualizado_em    timestamptz not null default now()
+);
+alter table public.participantes enable row level security;
+drop policy if exists "participante_grava_perfil"   on public.participantes;
+drop policy if exists "participante_edita_perfil"   on public.participantes;
+drop policy if exists "participante_le_perfil"      on public.participantes;
+drop policy if exists "pesquisador_le_perfis"       on public.participantes;
+create policy "participante_grava_perfil" on public.participantes
+  for insert to authenticated with check (auth_uid = auth.uid());
+create policy "participante_edita_perfil" on public.participantes
+  for update to authenticated using (auth_uid = auth.uid()) with check (auth_uid = auth.uid());
+create policy "participante_le_perfil" on public.participantes
+  for select to authenticated using (auth_uid = auth.uid());
+create policy "pesquisador_le_perfis" on public.participantes
+  for select to authenticated using (public.is_pesquisador());
+
+create or replace function public.tg_touch_atualizado()
+returns trigger language plpgsql as $$ begin new.atualizado_em = now(); return new; end $$;
+drop trigger if exists participantes_touch on public.participantes;
+create trigger participantes_touch before update on public.participantes
+  for each row execute function public.tg_touch_atualizado();
+
+-- 6) Registros (fotos, áudios, comentários)
 create table if not exists public.registros (
   id                bigint generated always as identity primary key,
   participante_id   text not null,
@@ -469,52 +633,37 @@ create index if not exists idx_registros_participante on public.registros (parti
 create index if not exists idx_registros_criado_em    on public.registros (criado_em desc);
 create index if not exists idx_registros_auth_uid     on public.registros (auth_uid);
 
--- 2) Função auxiliar: a sessão atual é de um pesquisador (login com senha)?
-create or replace function public.is_pesquisador()
-returns boolean language sql stable as $$
-  select auth.uid() is not null
-     and coalesce((auth.jwt() -&gt;&gt; 'is_anonymous')::boolean, false) = false
-$$;
-
--- 3) Segurança por linha
 alter table public.registros enable row level security;
-
 drop policy if exists "inserir_registros"         on public.registros;
 drop policy if exists "ler_registros"             on public.registros;
 drop policy if exists "ler_proprios_registros"    on public.registros;
 drop policy if exists "ler_registros_pesquisador" on public.registros;
-
--- Quem está logado (anônimo ou não) grava registros marcados com o próprio uid
 create policy "inserir_registros" on public.registros
-  for insert to authenticated
-  with check (auth_uid = auth.uid());
-
--- Participante lê só o que ele mesmo gravou (timeline do dia)
+  for insert to authenticated with check (auth_uid = auth.uid());
 create policy "ler_proprios_registros" on public.registros
-  for select to authenticated
-  using (auth_uid = auth.uid());
-
--- Pesquisador lê tudo
+  for select to authenticated using (auth_uid = auth.uid());
 create policy "ler_registros_pesquisador" on public.registros
-  for select to authenticated
-  using (public.is_pesquisador());
+  for select to authenticated using (public.is_pesquisador());
 
--- 4) Bucket "refeicoes" — público para servir fotos/áudios por URL direta.
---    Os caminhos usam IDs aleatórios; listar o conteúdo só é possível para pesquisador.
+-- 7) Bucket "refeicoes" — público para servir fotos/áudios por URL direta (IDs aleatórios);
+--    listar o conteúdo só é possível para pesquisador.
 insert into storage.buckets (id, name, public)
 values ('refeicoes', 'refeicoes', true)
 on conflict (id) do update set public = true;
-
 drop policy if exists "upload_fotos" on storage.objects;
 drop policy if exists "ler_fotos"    on storage.objects;
-
 create policy "upload_fotos" on storage.objects
-  for insert to authenticated
-  with check (bucket_id = 'refeicoes');
-
+  for insert to authenticated with check (bucket_id = 'refeicoes');
 create policy "ler_fotos" on storage.objects
-  for select to authenticated
-  using (bucket_id = 'refeicoes' and public.is_pesquisador());</div>
+  for select to authenticated using (bucket_id = 'refeicoes' and public.is_pesquisador());
+
+-- ============================================================
+-- OPCIONAL — se você já criou um usuário manualmente no painel
+-- (Authentication → Users), autorize-o como pesquisador assim:
+-- insert into public.pesquisadores (user_id, email)
+--   select id, email from auth.users where email = 'seu@email.com'
+--   on conflict do nothing;
+-- ============================================================</div>
       <button class="copy-btn" id="copySqlBtn" type="button">Copiar SQL</button>
     </div>
 
@@ -523,9 +672,9 @@ create policy "ler_fotos" on storage.objects
       <p><b>1.</b> Crie conta em <b>supabase.com</b> → New project (região São Paulo)</p>
       <p><b>2.</b> Settings → API Keys → copie <b>Project URL</b> e <b>Publishable key</b> e cole acima</p>
       <p><b>3.</b> Authentication → Providers → ative <b>Anonymous sign-ins</b> (participantes)</p>
-      <p><b>4.</b> Authentication → Users → <b>Add user</b> → e-mail + senha do pesquisador (Auto Confirm)</p>
-      <p><b>5.</b> SQL Editor → cole o SQL acima → <b>Run</b> (cria tabela, bucket e permissões)</p>
-      <p><b>6.</b> Publique este arquivo (GitHub Pages) e compartilhe o link com o código de acesso</p>
+      <p><b>4.</b> Authentication → Sign In / Providers → Email → desmarque <b>Confirm email</b> (ou mantenha e peça para confirmar)</p>
+      <p><b>5.</b> SQL Editor → cole o SQL acima → <b>Run</b> (cria tabelas, bucket, permissões e o código de cadastro)</p>
+      <p><b>6.</b> Publique este arquivo (GitHub Pages). Pesquisadores criam conta no app com o código de cadastro</p>
     </div>
     </section>
   </div>
@@ -625,17 +774,48 @@ async function enter(){
   if(!p||p.name.toLowerCase()!==name.toLowerCase())p={id:knownIdFor(name)||uid(),name};
   if(supa){const ok=await ensureSession();
     if(!ok){setLoading(btn,false);toast("Não foi possível conectar. Verifique a internet e tente de novo.",true);return}}
-  participant=p;saveParticipant(p);setLoading(btn,false);showApp()}
+  participant=p;saveParticipant(p);setLoading(btn,false);
+  const prof=await loadProfile();
+  if(prof)showApp();else showProfile()}
+
+/* ============ PERFIL DO PARTICIPANTE ============ */
+function profileKey(){return"diario_profile_"+participant.id}
+function profileLocal(){try{return JSON.parse(localStorage.getItem(profileKey())||"null")}catch(e){return null}}
+async function loadProfile(){
+  let prof=profileLocal();
+  if(!prof&&supa){try{const{data}=await supa.from("participantes").select("*").eq("participante_id",participant.id).limit(1);
+    if(data&&data[0]){prof=data[0];localStorage.setItem(profileKey(),JSON.stringify(prof))}}catch(e){console.error(e)}}
+  return prof}
+function showProfile(){
+  const p=profileLocal()||{};
+  $("pfNome").value=p.nome_pessoa||participant.name;$("pfIdade").value=p.idade??"";
+  $("pfResp").value=p.responsavel||"";$("pfDiag").value=p.diagnostico||"";
+  $("pfRestr").value=p.restricoes||"";$("pfContato").value=p.contato||"";
+  $("screen-login").classList.add("hidden");$("screen-app").classList.add("hidden");$("screen-profile").classList.remove("hidden");
+  $("pfBackBtn").textContent=p.participante_id?"← Voltar sem alterar":"← Voltar"}
+async function saveProfile(){
+  const nome=$("pfNome").value.trim(),idade=$("pfIdade").value.trim(),resp=$("pfResp").value;
+  if(nome.length<2){toast("Informe o nome ou apelido",true);return}
+  if(idade===""||isNaN(+idade)||+idade<0||+idade>120){toast("Informe uma idade válida",true);return}
+  if(!resp){toast("Informe quem está preenchendo",true);return}
+  const prof={participante_id:participant.id,nome_responsavel:participant.name,nome_pessoa:nome,idade:+idade,responsavel:resp,
+    diagnostico:$("pfDiag").value||null,restricoes:$("pfRestr").value.trim()||null,contato:$("pfContato").value.trim()||null};
+  const btn=$("pfSaveBtn");setLoading(btn,true);
+  try{if(supa){if(!await ensureSession())throw new Error("sem sessão");
+      const{error}=await supa.from("participantes").upsert(prof,{onConflict:"participante_id"});if(error)throw error}
+    localStorage.setItem(profileKey(),JSON.stringify(prof));toast("Perfil salvo ✓");showApp()}
+  catch(e){console.error(e);toast("Não foi possível salvar o perfil. Tente de novo.",true)}
+  finally{setLoading(btn,false)}}
 function showApp(){
   $("greet").textContent=greeting()+", "+participant.name;
   $("dateLabel").textContent=dateLabel();
-  $("screen-login").classList.add("hidden");$("screen-app").classList.remove("hidden");
+  $("screen-login").classList.add("hidden");$("screen-profile").classList.add("hidden");$("screen-app").classList.remove("hidden");
   loadToday()}
 async function logout(){localStorage.removeItem("diario_participant");
   // encerra a sessão anônima para que a próxima pessoa neste aparelho tenha a sua própria
   if(supa){try{const{data:s}=await supa.auth.getSession();if(s.session&&!isResearcherSession(s.session))await supa.auth.signOut()}catch(e){}}
   participant=null;chosenMeal=null;chosenFile=null;resetForm();
-  $("screen-app").classList.add("hidden");$("screen-login").classList.remove("hidden");
+  $("screen-app").classList.add("hidden");$("screen-profile").classList.add("hidden");$("screen-login").classList.remove("hidden");
   $("nameInput").value=""}
 
 /* ============ ACTION SHEET ============ */
@@ -770,8 +950,8 @@ async function loadToday(){
   $("arcFill").style.width=Math.min(100,(doneCount/MEALS.length)*100)+"%"}
 
 /* ============ ADMIN ============ */
-let adminRows=[];
-function adminShow(which){["admin-auth","admin-dash","admin-config"].forEach(id=>$(id).classList.toggle("hidden",id!==which))}
+let adminRows=[],adminProfiles={};
+function adminShow(which){["admin-auth","admin-dash","admin-config"].forEach(id=>$(id).classList.toggle("hidden",id!==which));if(which==="admin-auth")adminAuthMode(false)}
 async function adminLogin(){
   const email=$("adminEmail").value.trim(),pw=$("adminPw").value;const btn=$("adminLoginBtn");
   if(!email||!pw){toast("Informe e-mail e senha",true);return}
@@ -781,6 +961,30 @@ async function adminLogin(){
     if(error||!isResearcherSession(data?.session)){toast("E-mail ou senha incorretos",true);return}
     $("adminPw").value="";adminShow("admin-dash");adminLoad()
   }catch(e){console.error(e);toast("Não foi possível entrar. Verifique a conexão.",true)}
+  finally{setLoading(btn,false)}}
+function adminAuthMode(signup){$("admin-login-card").classList.toggle("hidden",signup);$("admin-signup-card").classList.toggle("hidden",!signup)}
+async function adminSignup(){
+  const email=$("suEmail").value.trim().toLowerCase(),nome=$("suNome").value.trim(),pw=$("suPw").value,pw2=$("suPw2").value,code=$("suCode").value.trim();
+  if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)){toast("Informe um e-mail válido",true);return}
+  if(nome.length<2){toast("Informe seu nome",true);return}
+  if(pw.length<8){toast("A senha precisa ter pelo menos 8 caracteres",true);return}
+  if(pw!==pw2){toast("As senhas não coincidem",true);return}
+  if(!code){toast("Informe o código de cadastro",true);return}
+  if(!supa){toast("Sem conexão com o servidor",true);return}
+  const btn=$("signupBtn");setLoading(btn,true);
+  try{
+    // encerra sessão anônima do aparelho antes de criar a conta
+    try{const{data:s}=await supa.auth.getSession();if(s.session&&!isResearcherSession(s.session))await supa.auth.signOut()}catch(e){}
+    const{data,error}=await supa.auth.signUp({email,password:pw,options:{data:{nome,codigo_cadastro:code}}});
+    if(error){const m=(error.message||"").toLowerCase();
+      if(m.includes("codigo_cadastro")||m.includes("código"))toast("Código de cadastro inválido",true);
+      else if(m.includes("already")||m.includes("registered"))toast("Este e-mail já tem conta. Use 'Já tenho conta'.",true);
+      else toast("Não foi possível criar a conta: "+error.message,true);
+      return}
+    ["suPw","suPw2","suCode"].forEach(i=>$(i).value="");
+    if(data?.session){toast("Conta criada. Bem-vindo(a)!");adminShow("admin-dash");adminLoad()}
+    else{toast("Conta criada. Confirme o e-mail que enviamos e depois entre.");adminAuthMode(false);$("adminEmail").value=email}
+  }catch(e){console.error(e);toast("Não foi possível criar a conta. Verifique a conexão.",true)}
   finally{setLoading(btn,false)}}
 async function adminLogout(){
   try{await supa?.auth.signOut()}catch(e){}
@@ -796,25 +1000,35 @@ async function adminLoad(){
   $("adminList").innerHTML='<div class="empty"><span class="spin" style="border-color:rgba(22,53,46,.2);border-top-color:var(--pine)"></span></div>';
   try{const{data:s}=await supa.auth.getSession();
     if(!isResearcherSession(s.session)){adminShow("admin-auth");return}
-    const{data,error}=await supa.from("registros").select("*").order("criado_em",{ascending:false});
-    if(error)throw error;adminRows=data||[];
+    const[reg,pf]=await Promise.all([
+      supa.from("registros").select("*").order("criado_em",{ascending:false}),
+      supa.from("participantes").select("*")]);
+    if(reg.error)throw reg.error;adminRows=reg.data||[];
+    adminProfiles={};(pf.data||[]).forEach(p=>adminProfiles[p.participante_id]=p);
     adminRows.forEach(r=>{r._url=pubUrl(r.foto_path);r._audioUrl=pubUrl(r.audio_path)});
     adminRender()
   }catch(e){console.error(e);$("adminList").innerHTML='<div class="empty">Erro ao carregar. Verifique a configuração.</div>'}}
 function adminRender(){
   const q=$("adminSearch").value.trim().toLowerCase();
   const f=q?adminRows.filter(r=>(r.participante_nome||"").toLowerCase().includes(q)):adminRows;
-  const ppl=new Set(adminRows.map(r=>r.participante_id)),td=todayKey();
+  const ppl=new Set([...adminRows.map(r=>r.participante_id),...Object.keys(adminProfiles)]),td=todayKey();
   $("sPeople").textContent=ppl.size;$("sPhotos").textContent=adminRows.length;
   $("sToday").textContent=adminRows.filter(r=>(r.criado_em||"").slice(0,10)===td).length;
   const g={};f.forEach(r=>{const k=r.participante_id;
     (g[k]=g[k]||{nome:r.participante_nome,id:k,items:[]}).items.push(r)});
+  // participantes com perfil mas sem registros ainda
+  Object.values(adminProfiles).forEach(p=>{if(!g[p.participante_id]&&(!q||(p.nome_responsavel||"").toLowerCase().includes(q)||(p.nome_pessoa||"").toLowerCase().includes(q)))
+    g[p.participante_id]={nome:p.nome_responsavel,id:p.participante_id,items:[]}});
   const ks=Object.keys(g);
   if(!ks.length){$("adminList").innerHTML='<div class="empty">Nenhum registro.</div>';return}
   $("adminList").innerHTML=ks.map(k=>{const gr=g[k];
     const days=new Set(gr.items.map(i=>(i.criado_em||"").slice(0,10))).size;
-    return'<div class="person"><div class="person-h"><b>'+esc(gr.nome)+
-    "</b><small>"+gr.items.length+" registro(s) · "+days+" dia(s)</small></div><div class=\"grid\">"+
+    const p=adminProfiles[gr.id];
+    const prof=p?'<span class="prof">'+esc(p.nome_pessoa||"")+(p.idade!=null?", "+p.idade+" anos":"")+(p.responsavel?" · "+esc(p.responsavel):"")+
+      (p.diagnostico?" · "+esc(p.diagnostico):"")+(p.restricoes?"<br>Restrições: "+esc(p.restricoes):"")+(p.contato?"<br>Contato: "+esc(p.contato):"")+"</span>":
+      '<span class="prof">Perfil não preenchido</span>';
+    return'<div class="person"><div class="person-h"><div><b>'+esc(gr.nome)+"</b>"+prof+"</div><small>"+gr.items.length+" registro(s) · "+days+" dia(s)</small></div><div class=\"grid\">"+
+    (gr.items.length?"":'<div class="empty" style="grid-column:1/-1">Nenhum registro ainda.</div>')+
     gr.items.map(it=>'<div class="shot"><img src="'+it._url+'" loading="lazy" data-zoom="'+it._url+
     '" alt=""><div class="cap"><b>'+esc(it.refeicao)+"</b><small>"+fmtDT(it.criado_em)+"</small>"+
     (it.comentario?'<p style="margin:6px 0 0;font-size:12px;color:var(--ink);line-height:1.45;font-style:italic">'+esc(it.comentario)+"</p>":"")+
@@ -822,15 +1036,24 @@ function adminRender(){
     "</div></div>").join("")+"</div></div>"}).join("")}
 function csvCell(v){v=v==null?"":String(v);return'"'+v.replace(/"/g,'""')+'"'}
 function exportCSV(){
-  const h=["nome","participante_id","refeicao","data_hora","comentario","foto_url","audio_url"];
-  const ls=[h.join(",")].concat(adminRows.map(r=>[r.participante_nome,r.participante_id,r.refeicao,
-    r.criado_em,r.comentario||"",r._url,r._audioUrl||""].map(csvCell).join(",")));
+  const h=["nome_responsavel","participante_id","nome_pessoa","idade","responsavel","diagnostico","restricoes","contato","refeicao","data_hora","comentario","foto_url","audio_url"];
+  const P=id=>adminProfiles[id]||{};
+  const ls=[h.join(",")].concat(adminRows.map(r=>{const p=P(r.participante_id);return[r.participante_nome,r.participante_id,p.nome_pessoa,p.idade,p.responsavel,p.diagnostico,p.restricoes,p.contato,
+    r.refeicao,r.criado_em,r.comentario||"",r._url,r._audioUrl||""].map(csvCell).join(",")}));
   const b=new Blob(["\ufeff"+ls.join("\n")],{type:"text/csv;charset=utf-8"});
   const a=document.createElement("a");a.href=URL.createObjectURL(b);
   a.download="diario_"+todayKey()+".csv";a.click()}
 
 /* ============ CONFIG UI ============ */
 function loadCfgUI(){$("cfgUrl").value=supaUrl();$("cfgKey").value=supaKey();$("cfgCodeShow").textContent=accessCode()}
+async function saveRegCode(){
+  const novo=$("cfgRegCode").value.trim();
+  if(novo.length<6){toast("Use um código com pelo menos 6 caracteres",true);return}
+  const btn=$("cfgRegCodeBtn");setLoading(btn,true);
+  try{const{error}=await supa.rpc("definir_codigo_cadastro",{novo});if(error)throw error;
+    $("cfgRegCode").value="";toast("Código de cadastro atualizado ✓")}
+  catch(e){console.error(e);toast("Não foi possível trocar o código",true)}
+  finally{setLoading(btn,false)}}
 function saveCfg(){
   const url=$("cfgUrl").value.trim(),key=$("cfgKey").value.trim();
   if(!url||!key){toast("Preencha URL e Publishable Key",true);return}
@@ -865,6 +1088,13 @@ function init(){
   $("adminLogoutLink").addEventListener("click",adminLogout);
   $("adminCfgBtn").addEventListener("click",()=>{loadCfgUI();adminShow("admin-config")});
   $("adminCfgBackBtn").addEventListener("click",()=>adminShow("admin-dash"));
+  $("showSignupBtn").addEventListener("click",()=>adminAuthMode(true));
+  $("showLoginBtn").addEventListener("click",()=>adminAuthMode(false));
+  $("signupBtn").addEventListener("click",adminSignup);
+  $("cfgRegCodeBtn").addEventListener("click",saveRegCode);
+  $("pfSaveBtn").addEventListener("click",saveProfile);
+  $("pfBackBtn").addEventListener("click",()=>{if(profileLocal())showApp();else logout()});
+  $("editProfileLink").addEventListener("click",e=>{e.preventDefault();showProfile()});
   $("adminSearch").addEventListener("input",adminRender);
   $("refreshBtn").addEventListener("click",adminLoad);
   $("csvBtn").addEventListener("click",exportCSV);
@@ -877,7 +1107,7 @@ function init(){
   $("copySqlBtn").addEventListener("click",()=>{
     navigator.clipboard.writeText($("sqlBlock").textContent).then(()=>toast("SQL copiado ✓"))});
   $("cfgSaveBtn").addEventListener("click",saveCfg);
-  const p=loadParticipant();if(p){participant=p;showApp()}
+  const p=loadParticipant();if(p){participant=p;loadProfile().then(pf=>pf?showApp():showProfile())}
   if("serviceWorker"in navigator){navigator.serviceWorker.register(
     URL.createObjectURL(new Blob(["self.addEventListener('fetch',e=>e.respondWith(fetch(e.request)));"],
     {type:"application/javascript"}))).catch(()=>{})}}
