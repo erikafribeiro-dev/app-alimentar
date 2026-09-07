@@ -535,15 +535,16 @@ create table if not exists public.pesquisadores (
   criado_em timestamptz not null default now()
 );
 alter table public.pesquisadores enable row level security;
-drop policy if exists "pesquisador_ve_lista" on public.pesquisadores;
-create policy "pesquisador_ve_lista" on public.pesquisadores
-  for select to authenticated using (public.is_pesquisador());
 
 -- 2) Função: a sessão atual é de um pesquisador autorizado?
 create or replace function public.is_pesquisador()
 returns boolean language sql stable security definer set search_path = public as $$
   select exists (select 1 from public.pesquisadores where user_id = auth.uid())
 $$;
+
+drop policy if exists "pesquisador_ve_lista" on public.pesquisadores;
+create policy "pesquisador_ve_lista" on public.pesquisadores
+  for select to authenticated using (public.is_pesquisador());
 
 -- 3) Gatilho: ao criar usuário com código de cadastro válido → vira pesquisador.
 --    Código errado → o cadastro é recusado.
