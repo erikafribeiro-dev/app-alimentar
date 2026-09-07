@@ -81,7 +81,7 @@ h2.sm{font-size:19px}
 .lead{color:var(--ink-soft);margin:0 0 20px;font-size:14.5px}
 label{display:block;font-weight:600;font-size:13px;margin:0 0 7px;
   letter-spacing:.2px;color:var(--pine-mid)}
-input[type=text],input[type=password]{
+input[type=text],input[type=password],input[type=email]{
   width:100%;padding:15px 16px;font-size:16px;border:1.5px solid var(--line);
   border-radius:var(--r-sm);background:#FCFBF8;color:var(--ink);outline:none;
   font-family:var(--sans);transition:border-color .18s,box-shadow .18s}
@@ -278,7 +278,6 @@ code{background:#EDE7D8;padding:1px 6px;border-radius:6px;font-size:12px;
   <div class="nav rise d1" id="navBar">
     <button class="active" data-tab="participante">Participante</button>
     <button data-tab="pesquisador">Pesquisador</button>
-    <button data-tab="config">Config</button>
   </div>
 
   <!-- ================= PARTICIPANTE ================= -->
@@ -292,7 +291,7 @@ code{background:#EDE7D8;padding:1px 6px;border-radius:6px;font-size:12px;
           melhor a alimentação de pessoas autistas. Leva menos de um minuto
           por refeição.</p>
         <div id="cfgWarn" class="config-warn hidden">
-          Antes de usar, vá na aba <b>Config</b> e cole as chaves do Supabase.
+          O app não conseguiu conectar ao servidor. Fotos ficarão apenas neste aparelho (modo demonstração).
         </div>
         <label for="nameInput">Como podemos te chamar?</label>
         <input id="nameInput" type="text" placeholder="Seu primeiro nome" autocomplete="given-name" enterkeyhint="next" />
@@ -382,9 +381,12 @@ code{background:#EDE7D8;padding:1px 6px;border-radius:6px;font-size:12px;
     <section id="admin-auth">
       <div class="card">
         <h2 class="sm">Área do pesquisador</h2>
-        <p class="lead">Acesso restrito à equipe da pesquisa.</p>
-        <label>Senha do pesquisador</label>
-        <input id="adminPw" type="password" placeholder="••••••••" />
+        <p class="lead">Acesso restrito à equipe da pesquisa. Entre com o e-mail e a senha cadastrados no Supabase.</p>
+        <label for="adminEmail">E-mail</label>
+        <input id="adminEmail" type="email" placeholder="voce@exemplo.com" autocomplete="username" enterkeyhint="next" />
+        <div style="height:12px"></div>
+        <label for="adminPw">Senha</label>
+        <input id="adminPw" type="password" placeholder="••••••••" autocomplete="current-password" enterkeyhint="go" />
         <div style="height:14px"></div>
         <button class="btn" id="adminLoginBtn" type="button"><span class="lbl">Entrar</span></button>
       </div>
@@ -397,34 +399,42 @@ code{background:#EDE7D8;padding:1px 6px;border-radius:6px;font-size:12px;
       </div>
       <div class="bar">
         <input id="adminSearch" type="text" placeholder="Buscar participante…" />
-        <button class="btn sm ghost" id="refreshBtn" type="button">↻</button>
+        <button class="btn sm ghost" id="refreshBtn" type="button" title="Atualizar">↻</button>
         <button class="btn sm" id="csvBtn" type="button">CSV</button>
       </div>
       <div id="adminList"><div class="empty">Carregando…</div></div>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-top:18px;padding:0 4px">
+        <button class="btn sm ghost" id="adminCfgBtn" type="button">⚙ Configuração</button>
+        <a class="logout" id="adminLogoutLink" style="margin:0">Sair da área do pesquisador</a>
+      </div>
     </section>
-  </div>
 
-  <!-- ================= CONFIG ================= -->
-  <div id="tab-config" class="hidden">
-    <div class="card">
-      <h2 class="sm">Configuração</h2>
-      <p class="lead">Fotos, áudios e comentários são salvos no Supabase. As chaves abaixo já estão configuradas; altere só se trocar de projeto.</p>
-      <label>Project URL</label>
-      <input id="cfgUrl" type="text" placeholder="https://xxxx.supabase.co" value="https://mxjamzrsosraqxvgybwu.supabase.co" />
-      <div style="height:12px"></div>
-      <label>Publishable Key</label>
-      <input id="cfgKey" type="text" placeholder="sb_publishable_..." value="sb_publishable_j54wGA2ENct0U6VPJ78aWw_VzWDkKEL" />
-      <div style="height:12px"></div>
-      <label>Código de acesso dos participantes</label>
-      <input id="cfgCode" type="text" placeholder="ex.: DIARIO2026" value="DIARIO2026" />
-      <p style="font-size:12px;color:var(--ink-soft);margin:5px 0 12px">
-        Todos os participantes usam este mesmo código para entrar. Compartilhe junto com o link.</p>
-      <label>Senha do painel (pesquisador)</label>
-      <input id="cfgPw" type="text" placeholder="crie uma senha para a equipe" value="Pesquisa@2026" />
-      <div style="height:16px"></div>
-      <button class="btn" id="cfgSaveBtn" type="button"><span class="lbl">Salvar configuração</span></button>
-      <div id="cfgStatus" style="margin-top:12px;font-size:14px;color:var(--pine-mid)"></div>
-    </div>
+    <section id="admin-config" class="hidden">
+      <div class="card">
+        <button class="btn sm ghost" id="adminCfgBackBtn" type="button" style="margin-bottom:14px">← Voltar ao painel</button>
+        <h2 class="sm">Configuração</h2>
+        <p class="lead">Fotos, áudios e comentários são salvos no Supabase. As chaves abaixo já vêm configuradas; altere só se trocar de projeto.</p>
+        <label>Project URL</label>
+        <input id="cfgUrl" type="text" placeholder="https://xxxx.supabase.co" />
+        <div style="height:12px"></div>
+        <label>Publishable Key</label>
+        <input id="cfgKey" type="text" placeholder="sb_publishable_..." />
+        <div style="height:16px"></div>
+        <button class="btn" id="cfgSaveBtn" type="button"><span class="lbl">Salvar configuração</span></button>
+        <div id="cfgStatus" style="margin-top:12px;font-size:14px;color:var(--pine-mid)"></div>
+      </div>
+
+      <div class="card">
+        <h2 class="sm">Acessos</h2>
+        <p style="margin:0 0 10px"><b>Código dos participantes:</b> <code id="cfgCodeShow" style="background:var(--pine-soft);padding:2px 8px;border-radius:6px"></code></p>
+        <p style="font-size:13px;color:var(--ink-soft);margin:0 0 14px;line-height:1.5">
+          Todas as famílias usam este código junto com o link. Para trocá-lo, edite a constante
+          <code>DEFAULT_ACCESS_CODE</code> no arquivo e publique novamente.</p>
+        <p style="margin:0 0 6px"><b>Pesquisadores:</b></p>
+        <p style="font-size:13px;color:var(--ink-soft);margin:0;line-height:1.5">
+          Cada pesquisador tem e-mail e senha próprios, criados no Supabase em
+          <b>Authentication → Users → Add user</b> (marque <i>Auto Confirm User</i>). A senha nunca fica gravada neste app.</p>
+      </div>
 
     <div class="card">
       <h2 class="sm">SQL do banco</h2>
@@ -432,8 +442,14 @@ code{background:#EDE7D8;padding:1px 6px;border-radius:6px;font-size:12px;
       <div class="setup-block" id="sqlBlock">-- ============================================================
 -- DIÁRIO ALIMENTAR — Supabase (seguro para rodar mais de uma vez)
 -- ============================================================
+-- Modelo de acesso:
+--   • Participantes entram com login ANÔNIMO: podem gravar registros
+--     e ler apenas os próprios.
+--   • Pesquisadores entram com E-MAIL + SENHA (Authentication → Users):
+--     leem tudo. A senha fica no Supabase, nunca no app.
+-- ============================================================
 
--- 1) Tabela (cria se não existir; garante as colunas novas se já existir)
+-- 1) Tabela
 create table if not exists public.registros (
   id                bigint generated always as identity primary key,
   participante_id   text not null,
@@ -442,28 +458,49 @@ create table if not exists public.registros (
   foto_path         text not null,
   audio_path        text,
   comentario        text,
+  auth_uid          uuid default auth.uid(),
   criado_em         timestamptz not null default now()
 );
 alter table public.registros add column if not exists audio_path text;
 alter table public.registros add column if not exists comentario text;
+alter table public.registros add column if not exists auth_uid uuid default auth.uid();
 
 create index if not exists idx_registros_participante on public.registros (participante_id);
-create index if not exists idx_registros_criado_em on public.registros (criado_em desc);
+create index if not exists idx_registros_criado_em    on public.registros (criado_em desc);
+create index if not exists idx_registros_auth_uid     on public.registros (auth_uid);
 
--- 2) Segurança por linha
+-- 2) Função auxiliar: a sessão atual é de um pesquisador (login com senha)?
+create or replace function public.is_pesquisador()
+returns boolean language sql stable as $$
+  select auth.uid() is not null
+     and coalesce((auth.jwt() -&gt;&gt; 'is_anonymous')::boolean, false) = false
+$$;
+
+-- 3) Segurança por linha
 alter table public.registros enable row level security;
 
-drop policy if exists "inserir_registros" on public.registros;
-drop policy if exists "ler_registros"     on public.registros;
+drop policy if exists "inserir_registros"         on public.registros;
+drop policy if exists "ler_registros"             on public.registros;
+drop policy if exists "ler_proprios_registros"    on public.registros;
+drop policy if exists "ler_registros_pesquisador" on public.registros;
 
--- Participantes (login anônimo) podem inserir
+-- Quem está logado (anônimo ou não) grava registros marcados com o próprio uid
 create policy "inserir_registros" on public.registros
-  for insert to authenticated with check (true);
--- Leitura liberada (o painel do pesquisador é protegido por senha no app)
-create policy "ler_registros" on public.registros
-  for select to anon, authenticated using (true);
+  for insert to authenticated
+  with check (auth_uid = auth.uid());
 
--- 3) Bucket "refeicoes" (cria público se não existir; guarda fotos e áudios)
+-- Participante lê só o que ele mesmo gravou (timeline do dia)
+create policy "ler_proprios_registros" on public.registros
+  for select to authenticated
+  using (auth_uid = auth.uid());
+
+-- Pesquisador lê tudo
+create policy "ler_registros_pesquisador" on public.registros
+  for select to authenticated
+  using (public.is_pesquisador());
+
+-- 4) Bucket "refeicoes" — público para servir fotos/áudios por URL direta.
+--    Os caminhos usam IDs aleatórios; listar o conteúdo só é possível para pesquisador.
 insert into storage.buckets (id, name, public)
 values ('refeicoes', 'refeicoes', true)
 on conflict (id) do update set public = true;
@@ -472,22 +509,25 @@ drop policy if exists "upload_fotos" on storage.objects;
 drop policy if exists "ler_fotos"    on storage.objects;
 
 create policy "upload_fotos" on storage.objects
-  for insert to authenticated with check (bucket_id = 'refeicoes');
+  for insert to authenticated
+  with check (bucket_id = 'refeicoes');
+
 create policy "ler_fotos" on storage.objects
-  for select to anon, authenticated using (bucket_id = 'refeicoes');</div>
+  for select to authenticated
+  using (bucket_id = 'refeicoes' and public.is_pesquisador());</div>
       <button class="copy-btn" id="copySqlBtn" type="button">Copiar SQL</button>
     </div>
 
     <div class="card guide">
       <h2 class="sm">Passo a passo</h2>
       <p><b>1.</b> Crie conta em <b>supabase.com</b> → New project (região São Paulo)</p>
-      <p><b>2.</b> Settings → API Keys → copie <b>Project URL</b> e <b>Publishable key</b></p>
-      <p><b>3.</b> Storage → New bucket → nome <b>refeicoes</b> → marque <b>Public</b></p>
-      <p><b>4.</b> Authentication → ative <b>Anonymous sign-ins</b></p>
-      <p><b>5.</b> SQL Editor → cole o SQL acima → <b>Run</b></p>
-      <p><b>6.</b> Volte aqui, cole URL + Key e salve</p>
-      <p><b>7.</b> Publique este arquivo (GitHub Pages) e compartilhe o link com o código de acesso</p>
+      <p><b>2.</b> Settings → API Keys → copie <b>Project URL</b> e <b>Publishable key</b> e cole acima</p>
+      <p><b>3.</b> Authentication → Providers → ative <b>Anonymous sign-ins</b> (participantes)</p>
+      <p><b>4.</b> Authentication → Users → <b>Add user</b> → e-mail + senha do pesquisador (Auto Confirm)</p>
+      <p><b>5.</b> SQL Editor → cole o SQL acima → <b>Run</b> (cria tabela, bucket e permissões)</p>
+      <p><b>6.</b> Publique este arquivo (GitHub Pages) e compartilhe o link com o código de acesso</p>
     </div>
+    </section>
   </div>
 
 </div>
@@ -509,14 +549,13 @@ create policy "ler_fotos" on storage.objects
 const DEFAULT_SUPA_URL="https://mxjamzrsosraqxvgybwu.supabase.co";
 const DEFAULT_SUPA_KEY="sb_publishable_j54wGA2ENct0U6VPJ78aWw_VzWDkKEL";
 const DEFAULT_ACCESS_CODE="DIARIO2026";
-const DEFAULT_ADMIN_PW="Pesquisa@2026";
 const BUCKET="refeicoes";
 function getConfig(){try{return JSON.parse(localStorage.getItem("diario_config")||"{}")}catch(e){return{}}}
 function saveConfig(c){try{localStorage.setItem("diario_config",JSON.stringify(c))}catch(e){}}
 function supaUrl(){return(getConfig().url||DEFAULT_SUPA_URL).trim().replace(/\/rest\/v1\/?$/,"").replace(/\/$/,"")}
 function supaKey(){return(getConfig().key||DEFAULT_SUPA_KEY).trim()}
-function accessCode(){cfg=getConfig();return (cfg.accessCode||DEFAULT_ACCESS_CODE).toUpperCase()}
-function adminPassword(){cfg=getConfig();return cfg.adminPw||DEFAULT_ADMIN_PW}
+function accessCode(){return DEFAULT_ACCESS_CODE.toUpperCase()}
+function isResearcherSession(sess){return !!(sess&&sess.user&&sess.user.is_anonymous===false)}
 let cfg=getConfig(),supa=null;
 function initSupa(){cfg=getConfig();const u=supaUrl(),k=supaKey();
   if(u&&k){try{supa=supabase.createClient(u,k);return true}catch(e){console.error(e)}}
@@ -537,7 +576,8 @@ $("navBar").addEventListener("click",e=>{
   const b=e.target.closest("button[data-tab]");if(!b)return;
   document.querySelectorAll(".nav button").forEach(x=>x.classList.remove("active"));
   b.classList.add("active");
-  ["participante","pesquisador","config"].forEach(t=>$("tab-"+t).classList.toggle("hidden",t!==b.dataset.tab));
+  ["participante","pesquisador"].forEach(t=>$("tab-"+t).classList.toggle("hidden",t!==b.dataset.tab));
+  if(b.dataset.tab==="pesquisador")adminCheckSession();
 });
 
 /* ============ HELPERS ============ */
@@ -591,7 +631,9 @@ function showApp(){
   $("dateLabel").textContent=dateLabel();
   $("screen-login").classList.add("hidden");$("screen-app").classList.remove("hidden");
   loadToday()}
-function logout(){localStorage.removeItem("diario_participant");
+async function logout(){localStorage.removeItem("diario_participant");
+  // encerra a sessão anônima para que a próxima pessoa neste aparelho tenha a sua própria
+  if(supa){try{const{data:s}=await supa.auth.getSession();if(s.session&&!isResearcherSession(s.session))await supa.auth.signOut()}catch(e){}}
   participant=null;chosenMeal=null;chosenFile=null;resetForm();
   $("screen-app").classList.add("hidden");$("screen-login").classList.remove("hidden");
   $("nameInput").value=""}
@@ -687,6 +729,7 @@ async function send(){
     const row={participante_id:participant.id,participante_nome:participant.name,refeicao:chosenMeal,
       foto_path:fotoPath,audio_path:audioPath,comentario:chosenComment||null,criado_em:now.toISOString()};
     const ins=await supa.from("registros").insert(row);if(ins.error)throw ins.error;
+    storeLocal({meal:chosenMeal,time:row.criado_em,url:pubUrl(fotoPath),audioUrl:pubUrl(audioPath),comment:chosenComment});
     toast(audioPath?"Foto e áudio registrados. Obrigado!":"Foto registrada. Obrigado!");
     resetForm();await loadToday()
   }catch(e){console.error(e);toast("Não foi possível enviar. Verifique a conexão.",true)}
@@ -707,9 +750,12 @@ async function fetchTodayFromSupa(){
     return(data||[]).map(r=>({meal:r.refeicao,time:r.criado_em,url:pubUrl(r.foto_path),audioUrl:pubUrl(r.audio_path),comment:r.comentario||""}))}
   catch(e){console.error(e);return null}}
 async function loadToday(){
+  let local=[];try{local=JSON.parse(localStorage.getItem(localKey())||"[]")}catch(e){}
   let arr=null;
   if(supa){$("todayList").innerHTML='<div class="empty"><span class="spin" style="border-color:rgba(22,53,46,.2);border-top-color:var(--pine)"></span></div>';arr=await fetchTodayFromSupa()}
-  if(arr===null){try{arr=JSON.parse(localStorage.getItem(localKey())||"[]")}catch(e){arr=[]}}
+  if(arr===null)arr=local;
+  else{const seen=new Set(arr.map(i=>i.time));local.forEach(i=>{if(!seen.has(i.time))arr.push(i)});
+    arr.sort((a,b)=>a.time<b.time?1:-1)}
   $("todayCount").textContent=arr.length+(arr.length===1?" registro":" registros");
   const list=$("todayList");
   if(!arr.length){list.innerHTML='<div class="empty">O primeiro registro do dia aparece aqui.</div>'}
@@ -725,13 +771,31 @@ async function loadToday(){
 
 /* ============ ADMIN ============ */
 let adminRows=[];
-function adminLogin(){
-  if($("adminPw").value!==adminPassword()){toast("Senha incorreta",true);return}
-  $("admin-auth").classList.add("hidden");$("admin-dash").classList.remove("hidden");adminLoad()}
+function adminShow(which){["admin-auth","admin-dash","admin-config"].forEach(id=>$(id).classList.toggle("hidden",id!==which))}
+async function adminLogin(){
+  const email=$("adminEmail").value.trim(),pw=$("adminPw").value;const btn=$("adminLoginBtn");
+  if(!email||!pw){toast("Informe e-mail e senha",true);return}
+  if(!supa){toast("Sem conexão com o servidor",true);return}
+  setLoading(btn,true);
+  try{const{data,error}=await supa.auth.signInWithPassword({email,password:pw});
+    if(error||!isResearcherSession(data?.session)){toast("E-mail ou senha incorretos",true);return}
+    $("adminPw").value="";adminShow("admin-dash");adminLoad()
+  }catch(e){console.error(e);toast("Não foi possível entrar. Verifique a conexão.",true)}
+  finally{setLoading(btn,false)}}
+async function adminLogout(){
+  try{await supa?.auth.signOut()}catch(e){}
+  adminRows=[];$("adminList").innerHTML='<div class="empty">Carregando…</div>';
+  adminShow("admin-auth");toast("Você saiu da área do pesquisador")}
+async function adminCheckSession(){
+  if(!supa){adminShow("admin-auth");return}
+  try{const{data:s}=await supa.auth.getSession();
+    if(isResearcherSession(s.session)){adminShow("admin-dash");if(!adminRows.length)adminLoad()}else adminShow("admin-auth")}
+  catch(e){adminShow("admin-auth")}}
 async function adminLoad(){
-  if(!initSupa()){$("adminList").innerHTML='<div class="empty">Configure o Supabase na aba Config.</div>';return}
+  if(!initSupa()){$("adminList").innerHTML='<div class="empty">Sem conexão com o servidor. Verifique a configuração.</div>';return}
   $("adminList").innerHTML='<div class="empty"><span class="spin" style="border-color:rgba(22,53,46,.2);border-top-color:var(--pine)"></span></div>';
-  try{await ensureSession();
+  try{const{data:s}=await supa.auth.getSession();
+    if(!isResearcherSession(s.session)){adminShow("admin-auth");return}
     const{data,error}=await supa.from("registros").select("*").order("criado_em",{ascending:false});
     if(error)throw error;adminRows=data||[];
     adminRows.forEach(r=>{r._url=pubUrl(r.foto_path);r._audioUrl=pubUrl(r.audio_path)});
@@ -766,15 +830,11 @@ function exportCSV(){
   a.download="diario_"+todayKey()+".csv";a.click()}
 
 /* ============ CONFIG UI ============ */
-function loadCfgUI(){cfg=getConfig();
-  $("cfgUrl").value=supaUrl();$("cfgKey").value=supaKey();
-  $("cfgCode").value=cfg.accessCode||DEFAULT_ACCESS_CODE;
-  $("cfgPw").value=cfg.adminPw||DEFAULT_ADMIN_PW}
+function loadCfgUI(){$("cfgUrl").value=supaUrl();$("cfgKey").value=supaKey();$("cfgCodeShow").textContent=accessCode()}
 function saveCfg(){
-  const url=$("cfgUrl").value.trim(),key=$("cfgKey").value.trim(),
-    pw=$("cfgPw").value.trim(),code=$("cfgCode").value.trim().toUpperCase();
+  const url=$("cfgUrl").value.trim(),key=$("cfgKey").value.trim();
   if(!url||!key){toast("Preencha URL e Publishable Key",true);return}
-  saveConfig({url,key,adminPw:pw||DEFAULT_ADMIN_PW,accessCode:code||DEFAULT_ACCESS_CODE});
+  saveConfig({url,key});
   const ok=initSupa();
   $("cfgWarn").classList.toggle("hidden",ok);
   $("cfgStatus").textContent=ok?"Configuração salva ✓":"URL ou chave inválida";
@@ -801,6 +861,10 @@ function init(){
   $("logoutLink").addEventListener("click",e=>{e.preventDefault();logout()});
   $("adminLoginBtn").addEventListener("click",adminLogin);
   $("adminPw").addEventListener("keydown",e=>{if(e.key==="Enter")adminLogin()});
+  $("adminEmail").addEventListener("keydown",e=>{if(e.key==="Enter")$("adminPw").focus()});
+  $("adminLogoutLink").addEventListener("click",adminLogout);
+  $("adminCfgBtn").addEventListener("click",()=>{loadCfgUI();adminShow("admin-config")});
+  $("adminCfgBackBtn").addEventListener("click",()=>adminShow("admin-dash"));
   $("adminSearch").addEventListener("input",adminRender);
   $("refreshBtn").addEventListener("click",adminLoad);
   $("csvBtn").addEventListener("click",exportCSV);
