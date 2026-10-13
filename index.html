@@ -1,4 +1,5 @@
 <!DOCTYPE html>
+<!-- Diário Alimentar v2.0.1 — 2026-10-13 — projeto Supabase tkrwcpyxrwnqntsjcvou -->
 <html lang="pt-BR">
 <head>
 <meta charset="UTF-8" />
@@ -451,7 +452,11 @@ code{background:#EDE7D8;padding:1px 6px;border-radius:6px;font-size:12px;
         <input id="suCode" type="password" placeholder="fornecido pela coordenação" autocomplete="off" />
         <div style="height:16px"></div>
         <button class="btn" id="signupBtn" type="button"><span class="lbl">Criar conta</span></button>
-        <div style="text-align:center;margin-top:12px"><button class="linkbtn" id="showLoginBtn" type="button">← Já tenho conta</button></div>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-top:12px">
+          <button class="linkbtn" id="showLoginBtn" type="button">← Já tenho conta</button>
+          <button class="linkbtn" id="diagBtn" type="button">Verificar instalação</button>
+        </div>
+        <div id="diagOut" class="hidden" style="margin-top:12px;padding:12px 14px;border-radius:var(--r-sm);background:var(--pine-soft);font-size:13px;line-height:1.7"></div>
       </div>
     </section>
     <section id="admin-dash" class="hidden">
@@ -567,6 +572,21 @@ end $$;
 drop trigger if exists on_auth_user_created on auth.users;
 create trigger on_auth_user_created
   after insert on auth.users for each row execute function public.tg_novo_usuario();
+-- O serviço de autenticação (papel supabase_auth_admin) precisa poder executar o gatilho
+grant usage on schema public to supabase_auth_admin;
+grant execute on function public.tg_novo_usuario() to supabase_auth_admin;
+grant select on public.config_app to supabase_auth_admin;
+grant insert on public.pesquisadores to supabase_auth_admin;
+
+-- 3b) Pré-validação do código pelo app (mensagem clara antes de criar a conta).
+--     Não substitui o gatilho: o gatilho continua sendo a barreira real.
+create or replace function public.validar_codigo_cadastro(codigo text)
+returns boolean language sql stable security definer set search_path = public as $$
+  select exists (select 1 from public.config_app
+                 where chave = 'codigo_cadastro_pesquisador' and valor = codigo)
+$$;
+revoke all on function public.validar_codigo_cadastro(text) from public;
+grant execute on function public.validar_codigo_cadastro(text) to anon, authenticated;
 
 -- 4) Pesquisador pode trocar o código de cadastro pelo app
 create or replace function public.definir_codigo_cadastro(novo text)
@@ -696,8 +716,8 @@ create policy "ler_fotos" on storage.objects
 
 <script>
 /* ============ CONFIG (localStorage) ============ */
-const DEFAULT_SUPA_URL="https://mxjamzrsosraqxvgybwu.supabase.co";
-const DEFAULT_SUPA_KEY="sb_publishable_j54wGA2ENct0U6VPJ78aWw_VzWDkKEL";
+const DEFAULT_SUPA_URL="https://tkrwcpyxrwnqntsjcvou.supabase.co";
+const DEFAULT_SUPA_KEY="sb_publishable_NJdBj2AIIq8zV_vub9R7VQ_ghR-WSAi";
 const DEFAULT_ACCESS_CODE="DIARIO2026";
 const BUCKET="refeicoes";
 function getConfig(){try{return JSON.parse(localStorage.getItem("diario_config")||"{}")}catch(e){return{}}}
@@ -964,6 +984,17 @@ async function adminLogin(){
   }catch(e){console.error(e);toast("Não foi possível entrar. Verifique a conexão.",true)}
   finally{setLoading(btn,false)}}
 function adminAuthMode(signup){$("admin-login-card").classList.toggle("hidden",signup);$("admin-signup-card").classList.toggle("hidden",!signup)}
+function signupErrorMessage(error){
+  const m=(error?.message||"").toLowerCase(),st=error?.status;
+  if(m.includes("codigo_cadastro")||m.includes("database error saving new user"))
+    return"O servidor recusou o cadastro. Confira o código de cadastro; se estiver certo, o SQL de instalação pode não ter sido executado.";
+  if(m.includes("already registered")||m.includes("already been registered")||m.includes("already exists"))return"Este e-mail já tem conta. Use 'Já tenho conta'.";
+  if(m.includes("signups not allowed")||m.includes("signup is disabled"))return"Cadastro desativado no Supabase (Authentication → Sign In / Providers → 'Allow new users to sign up').";
+  if(m.includes("rate limit")||st===429)return"Muitas tentativas. Aguarde alguns minutos e tente de novo.";
+  if(m.includes("password"))return"Senha recusada pelo servidor: "+error.message;
+  if(m.includes("invalid email")||m.includes("unable to validate email"))return"E-mail inválido.";
+  if(m.includes("failed to fetch")||m.includes("network"))return"Sem conexão com o servidor. Verifique a internet.";
+  return"Não foi possível criar a conta: "+(error?.message||"erro desconhecido");}
 async function adminSignup(){
   const email=$("suEmail").value.trim().toLowerCase(),nome=$("suNome").value.trim(),pw=$("suPw").value,pw2=$("suPw2").value,code=$("suCode").value.trim();
   if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)){toast("Informe um e-mail válido",true);return}
@@ -974,19 +1005,53 @@ async function adminSignup(){
   if(!supa){toast("Sem conexão com o servidor",true);return}
   const btn=$("signupBtn");setLoading(btn,true);
   try{
-    // encerra sessão anônima do aparelho antes de criar a conta
+    // 1) valida o código no servidor antes de criar a conta (mensagem clara)
+    const v=await supa.rpc("validar_codigo_cadastro",{codigo:code});
+    if(v.error){const em=(v.error.message||"").toLowerCase();
+      if(em.includes("could not find")||em.includes("does not exist")||v.error.code==="PGRST202"){toast("O SQL de instalação ainda não foi executado no Supabase (função validar_codigo_cadastro ausente).",true);return}
+      console.error(v.error);toast("Não foi possível validar o código: "+v.error.message,true);return}
+    if(v.data!==true){toast("Código de cadastro inválido",true);return}
+    // 2) encerra sessão anônima do aparelho antes de criar a conta
     try{const{data:s}=await supa.auth.getSession();if(s.session&&!isResearcherSession(s.session))await supa.auth.signOut()}catch(e){}
+    // 3) cria a conta; o gatilho no banco confere o código de novo e autoriza como pesquisador
     const{data,error}=await supa.auth.signUp({email,password:pw,options:{data:{nome,codigo_cadastro:code}}});
-    if(error){const m=(error.message||"").toLowerCase();
-      if(m.includes("codigo_cadastro")||m.includes("código"))toast("Código de cadastro inválido",true);
-      else if(m.includes("already")||m.includes("registered"))toast("Este e-mail já tem conta. Use 'Já tenho conta'.",true);
-      else toast("Não foi possível criar a conta: "+error.message,true);
-      return}
+    if(error){console.error(error);toast(signupErrorMessage(error),true);return}
+    // Supabase (anti-enumeração): e-mail já existente volta como "usuário" sem identidades
+    if(data?.user&&Array.isArray(data.user.identities)&&data.user.identities.length===0){toast("Este e-mail já tem conta. Use 'Já tenho conta'.",true);return}
     ["suPw","suPw2","suCode"].forEach(i=>$(i).value="");
     if(data?.session){toast("Conta criada. Bem-vindo(a)!");adminShow("admin-dash");adminLoad()}
-    else{toast("Conta criada. Confirme o e-mail que enviamos e depois entre.");adminAuthMode(false);$("adminEmail").value=email}
+    else{toast("Conta criada. Confirme pelo link enviado ao seu e-mail e depois entre.");adminAuthMode(false);$("adminEmail").value=email}
   }catch(e){console.error(e);toast("Não foi possível criar a conta. Verifique a conexão.",true)}
   finally{setLoading(btn,false)}}
+async function runDiagnostics(){
+  const out=$("diagOut");out.classList.remove("hidden");out.innerHTML="Verificando…";const L=[];
+  const ok=(t)=>L.push("✅ "+t),bad=(t)=>L.push("❌ "+t),warn=(t)=>L.push("⚠️ "+t);
+  if(!supa){bad("Biblioteca do Supabase não carregou ou chaves ausentes");out.innerHTML=L.join("<br>");return}
+  ok("Conectado a "+esc(supaUrl().replace("https://","")));
+  // 1) função de validação (prova que o SQL foi executado)
+  try{const v=await supa.rpc("validar_codigo_cadastro",{codigo:"__diag__"});
+    if(v.error){const em=(v.error.message||"").toLowerCase();
+      if(em.includes("could not find")||em.includes("does not exist")||v.error.code==="PGRST202")bad("SQL de instalação não executado (função validar_codigo_cadastro ausente). Rode o setup.sql no SQL Editor.");
+      else bad("Erro ao chamar o servidor: "+esc(v.error.message))}
+    else ok("SQL de instalação aplicado (funções e tabelas existem)")}
+  catch(e){bad("Falha de rede ao chamar o servidor")}
+  // 2) código digitado (se houver)
+  const code=$("suCode").value.trim();
+  if(code){try{const v=await supa.rpc("validar_codigo_cadastro",{codigo:code});if(!v.error)(v.data===true?ok:bad)("Código de cadastro digitado "+(v.data===true?"é válido":"NÃO é válido"))}catch(e){}}
+  else warn("Digite o código de cadastro acima para testá-lo");
+  // 3) login anônimo (participantes)
+  try{const{data:s}=await supa.auth.getSession();
+    if(s.session)ok("Sessão ativa neste aparelho ("+(isResearcherSession(s.session)?"pesquisador":"anônima")+")");
+    else{const r=await supa.auth.signInAnonymously();
+      if(r.error)bad("Login anônimo desativado (Authentication → Providers → Anonymous): "+esc(r.error.message));
+      else{ok("Login anônimo funciona (participantes)");await supa.auth.signOut()}}}
+  catch(e){bad("Falha ao testar login anônimo")}
+  // 4) tabelas acessíveis
+  try{const t=await supa.from("participantes").select("participante_id").limit(1);
+    if(t.error)bad("Tabela participantes: "+esc(t.error.message));else ok("Tabela participantes acessível")}catch(e){}
+  try{const t=await supa.from("registros").select("id").limit(1);
+    if(t.error)bad("Tabela registros: "+esc(t.error.message));else ok("Tabela registros acessível")}catch(e){}
+  out.innerHTML=L.join("<br>")}
 async function adminLogout(){
   try{await supa?.auth.signOut()}catch(e){}
   adminRows=[];$("adminList").innerHTML='<div class="empty">Carregando…</div>';
@@ -1092,6 +1157,7 @@ function init(){
   $("showSignupBtn").addEventListener("click",()=>adminAuthMode(true));
   $("showLoginBtn").addEventListener("click",()=>adminAuthMode(false));
   $("signupBtn").addEventListener("click",adminSignup);
+  $("diagBtn").addEventListener("click",runDiagnostics);
   $("cfgRegCodeBtn").addEventListener("click",saveRegCode);
   $("pfSaveBtn").addEventListener("click",saveProfile);
   $("pfBackBtn").addEventListener("click",()=>{if(profileLocal())showApp();else logout()});
