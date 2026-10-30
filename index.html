@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Diário Alimentar v2.0.2 — 2026-10-13 — projeto Supabase mxjamzrsosraqxvgybwu -->
+<!-- Diário Alimentar v2.2 — 2026-10-30 — esqueci a senha / esqueci o código / sw.js próprio -->
 <html lang="pt-BR">
 <head>
 <meta charset="UTF-8" />
@@ -305,6 +305,15 @@ code{background:#EDE7D8;padding:1px 6px;border-radius:6px;font-size:12px;
         <input id="codeInput" type="text" placeholder="Informado pela equipe da pesquisa" autocomplete="off" autocapitalize="characters" enterkeyhint="go" />
         <div style="height:16px"></div>
         <button class="btn" id="enterBtn" type="button"><span class="lbl">Começar o diário</span></button>
+        <div style="text-align:center;margin-top:12px"><button class="linkbtn" id="forgotCodeBtn" type="button">Esqueci o código ou não acho meu diário</button></div>
+        <div id="forgotCodeBox" class="hidden" style="margin-top:12px;padding:14px 16px;border-radius:var(--r-sm);background:var(--pine-soft);font-size:13.5px;line-height:1.65">
+          <b>Esqueceu o código de acesso?</b><br>
+          Ele é o mesmo para todas as famílias e foi enviado junto com o link do app. Peça novamente à equipe da pesquisa
+          <span id="forgotContact"></span>.<br><br>
+          <b>Seu diário sumiu?</b><br>
+          O histórico fica ligado ao aparelho e ao nome usado. Entre com <b>exatamente o mesmo nome</b> de antes, no mesmo celular.
+          Se trocou de aparelho ou limpou o navegador, o que já foi enviado continua salvo com a pesquisa — só não aparece aqui; é só continuar o diário normalmente.
+        </div>
       </div>
       <p class="footnote rise d3">Seus registros são protegidos e usados somente nesta pesquisa.<br>
         Você vê apenas as suas próprias fotos.</p>
@@ -430,7 +439,32 @@ code{background:#EDE7D8;padding:1px 6px;border-radius:6px;font-size:12px;
         <input id="adminPw" type="password" placeholder="••••••••" autocomplete="current-password" enterkeyhint="go" />
         <div style="height:14px"></div>
         <button class="btn" id="adminLoginBtn" type="button"><span class="lbl">Entrar</span></button>
-        <div style="text-align:center;margin-top:12px"><button class="linkbtn" id="showSignupBtn" type="button">Sou da equipe e ainda não tenho conta</button></div>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-top:12px;flex-wrap:wrap;gap:6px">
+          <button class="linkbtn" id="showSignupBtn" type="button">Sou da equipe e ainda não tenho conta</button>
+          <button class="linkbtn" id="showForgotBtn" type="button">Esqueci a senha</button>
+        </div>
+      </div>
+
+      <div class="card hidden" id="admin-forgot-card">
+        <h2 class="sm">Redefinir senha</h2>
+        <p class="lead">Informe o e-mail da sua conta de pesquisador. Enviaremos um link para criar uma nova senha.</p>
+        <label for="fgEmail">E-mail</label>
+        <input id="fgEmail" type="email" placeholder="voce@exemplo.com" autocomplete="username" enterkeyhint="go" />
+        <div style="height:14px"></div>
+        <button class="btn" id="forgotBtn" type="button"><span class="lbl">Enviar link de redefinição</span></button>
+        <div style="text-align:center;margin-top:12px"><button class="linkbtn" id="forgotBackBtn" type="button">← Voltar</button></div>
+      </div>
+
+      <div class="card hidden" id="admin-reset-card">
+        <h2 class="sm">Nova senha</h2>
+        <p class="lead">Você veio pelo link de redefinição. Defina a nova senha da sua conta.</p>
+        <label for="rsPw">Nova senha (mínimo 8 caracteres)</label>
+        <input id="rsPw" type="password" placeholder="••••••••" autocomplete="new-password" />
+        <div style="height:12px"></div>
+        <label for="rsPw2">Confirmar nova senha</label>
+        <input id="rsPw2" type="password" placeholder="••••••••" autocomplete="new-password" enterkeyhint="go" />
+        <div style="height:14px"></div>
+        <button class="btn" id="resetBtn" type="button"><span class="lbl">Salvar nova senha</span></button>
       </div>
 
       <div class="card hidden" id="admin-signup-card">
@@ -719,6 +753,7 @@ create policy "ler_fotos" on storage.objects
 const DEFAULT_SUPA_URL="https://mxjamzrsosraqxvgybwu.supabase.co";
 const DEFAULT_SUPA_KEY="sb_publishable_j54wGA2ENct0U6VPJ78aWw_VzWDkKEL";
 const DEFAULT_ACCESS_CODE="DIARIO2026";
+const RESEARCH_CONTACT="";   // opcional: e-mail/WhatsApp da equipe, mostrado em "Esqueci o código". Ex.: "pesquisa@exemplo.br"
 const BUCKET="refeicoes";
 function getConfig(){try{return JSON.parse(localStorage.getItem("diario_config")||"{}")}catch(e){return{}}}
 function saveConfig(c){try{localStorage.setItem("diario_config",JSON.stringify(c))}catch(e){}}
@@ -731,6 +766,12 @@ function initSupa(){cfg=getConfig();const u=supaUrl(),k=supaKey();
   if(u&&k){try{supa=supabase.createClient(u,k);return true}catch(e){console.error(e)}}
   supa=null;return false}
 initSupa();
+// Se o Supabase derrubar a sessão (token expirado/revogado), volta o painel para a tela de login
+function watchAuth(){if(!supa||supa._watched)return;supa._watched=true;
+  supa.auth.onAuthStateChange((ev,sess)=>{
+    if(ev==="PASSWORD_RECOVERY"){enterRecoveryMode();return}
+    if(ev==="SIGNED_OUT"&&!$("tab-pesquisador").classList.contains("hidden")&&!$("admin-dash").classList.contains("hidden")){
+      adminRows=[];adminShow("admin-auth");toast("Sua sessão expirou. Entre novamente.",true)}})}
 async function ensureSession(){if(!supa)return false;
   try{const{data:s}=await supa.auth.getSession();
     if(s.session)return true;
@@ -780,6 +821,24 @@ function saveParticipant(p){try{localStorage.setItem("diario_participant",JSON.s
   localStorage.setItem("diario_ids",JSON.stringify(m))}catch(e){}}
 function loadParticipant(){try{const r=localStorage.getItem("diario_participant");return r?JSON.parse(r):null}catch(e){return null}}
 function knownIdFor(name){try{return JSON.parse(localStorage.getItem("diario_ids")||"{}")[name.trim().toLowerCase()]||null}catch(e){return null}}
+/* A sessão anônima do Supabase é o que dá acesso aos dados (auth_uid). Guardamos os tokens
+   por participante para restaurar a MESMA sessão quando a pessoa sai e entra de novo. */
+function sessKey(pid){return"diario_sess_"+pid}
+async function rememberSession(pid){try{const{data:s}=await supa.auth.getSession();
+  if(s.session&&!isResearcherSession(s.session))localStorage.setItem(sessKey(pid),JSON.stringify({a:s.session.access_token,r:s.session.refresh_token}))}catch(e){}}
+async function restoreSession(pid){
+  try{const raw=localStorage.getItem(sessKey(pid));if(!raw)return false;const t=JSON.parse(raw);
+    const{data,error}=await supa.auth.setSession({access_token:t.a,refresh_token:t.r});
+    if(error||!data.session){localStorage.removeItem(sessKey(pid));return false}
+    return true}catch(e){return false}}
+async function ensureParticipantSession(pid){
+  // 1) se há sessão de pesquisador neste aparelho, sai dela (não misturar dados de teste)
+  try{const{data:s}=await supa.auth.getSession();if(s.session&&isResearcherSession(s.session))await supa.auth.signOut()}catch(e){}
+  // 2) tenta restaurar a sessão anônima deste participante
+  if(await restoreSession(pid))return true;
+  // 3) senão, nova sessão anônima
+  try{await supa.auth.signOut()}catch(e){}
+  return ensureSession()}
 let participant=null,chosenMeal=null,chosenFile=null,chosenComment="",chosenAudio=null;
 let mediaRecorder=null,audioChunks=[];
 
@@ -792,9 +851,14 @@ async function enter(){
   if(code!==accessCode()){toast("Código de acesso incorreto",true);return}
   const btn=$("enterBtn");setLoading(btn,true);
   let p=loadParticipant();
-  if(!p||p.name.toLowerCase()!==name.toLowerCase())p={id:knownIdFor(name)||uid(),name};
-  if(supa){const ok=await ensureSession();
-    if(!ok){setLoading(btn,false);toast("Não foi possível conectar. Verifique a internet e tente de novo.",true);return}}
+  if(!p||p.name.toLowerCase()!==name.toLowerCase()){
+    const known=knownIdFor(name);
+    // só reaproveita o ID antigo se conseguirmos restaurar a sessão que gravou os dados dele
+    const canRestore=known&&supa?await restoreSession(known):false;
+    p={id:(canRestore?known:uid()),name}}
+  if(supa){const ok=await ensureParticipantSession(p.id);
+    if(!ok){setLoading(btn,false);toast("Não foi possível conectar. Verifique a internet e tente de novo.",true);return}
+    await rememberSession(p.id)}
   participant=p;saveParticipant(p);setLoading(btn,false);
   const prof=await loadProfile();
   if(prof)showApp();else showProfile()}
@@ -983,7 +1047,45 @@ async function adminLogin(){
     $("adminPw").value="";adminShow("admin-dash");adminLoad()
   }catch(e){console.error(e);toast("Não foi possível entrar. Verifique a conexão.",true)}
   finally{setLoading(btn,false)}}
-function adminAuthMode(signup){$("admin-login-card").classList.toggle("hidden",signup);$("admin-signup-card").classList.toggle("hidden",!signup)}
+function adminAuthMode(mode){ // false/"login" | true/"signup" | "forgot" | "reset"
+  const m=mode===true?"signup":(mode||"login");
+  const map={login:"admin-login-card",signup:"admin-signup-card",forgot:"admin-forgot-card",reset:"admin-reset-card"};
+  Object.values(map).forEach(id=>$(id).classList.add("hidden"));$(map[m]).classList.remove("hidden")}
+/* ---- Esqueci a senha (pesquisador) ---- */
+function appBaseUrl(){return location.origin+location.pathname}
+async function forgotPassword(){
+  const email=$("fgEmail").value.trim().toLowerCase();
+  if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)){toast("Informe um e-mail válido",true);return}
+  if(!supa){toast("Sem conexão com o servidor",true);return}
+  const btn=$("forgotBtn");setLoading(btn,true);
+  try{const{error}=await supa.auth.resetPasswordForEmail(email,{redirectTo:appBaseUrl()});
+    if(error){const m=(error.message||"").toLowerCase();
+      toast(m.includes("rate limit")||error.status===429?"Muitas tentativas. Aguarde alguns minutos.":"Não foi possível enviar: "+error.message,true);return}
+    toast("Se este e-mail tiver conta, o link de redefinição foi enviado. Confira também o spam.");
+    $("fgEmail").value="";adminAuthMode("login");$("adminEmail").value=email}
+  catch(e){console.error(e);toast("Não foi possível enviar. Verifique a conexão.",true)}
+  finally{setLoading(btn,false)}}
+async function resetPassword(){
+  const pw=$("rsPw").value,pw2=$("rsPw2").value;
+  if(pw.length<8){toast("A senha precisa ter pelo menos 8 caracteres",true);return}
+  if(pw!==pw2){toast("As senhas não coincidem",true);return}
+  const btn=$("resetBtn");setLoading(btn,true);
+  try{const{error}=await supa.auth.updateUser({password:pw});
+    if(error){const m=(error.message||"").toLowerCase();
+      toast(m.includes("same")||m.includes("different")?"A nova senha precisa ser diferente da anterior.":"Não foi possível salvar: "+error.message,true);return}
+    $("rsPw").value="";$("rsPw2").value="";history.replaceState(null,"",appBaseUrl());
+    toast("Senha atualizada. Você já está conectado(a).");
+    const{data:s}=await supa.auth.getSession();
+    if(isResearcherSession(s.session)&&await isAuthorizedResearcher()){adminShow("admin-dash");adminLoad()}else adminShow("admin-auth")}
+  catch(e){console.error(e);toast("Não foi possível salvar a senha.",true)}
+  finally{setLoading(btn,false)}}
+async function isAuthorizedResearcher(){try{const{data}=await supa.from("pesquisadores").select("user_id").limit(1);return !!(data&&data.length)}catch(e){return false}}
+// Chegou pelo link do e-mail? (Supabase coloca type=recovery na URL ou dispara PASSWORD_RECOVERY)
+function isRecoveryUrl(){return /type=recovery/.test(location.hash)||/type=recovery/.test(location.search)}
+function enterRecoveryMode(){
+  document.querySelectorAll(".nav button").forEach(x=>x.classList.toggle("active",x.dataset.tab==="pesquisador"));
+  $("tab-participante").classList.add("hidden");$("tab-pesquisador").classList.remove("hidden");
+  adminShow("admin-auth");adminAuthMode("reset");setTimeout(()=>$("rsPw").focus(),300)}
 function signupErrorMessage(error){
   const m=(error?.message||"").toLowerCase(),st=error?.status;
   if(m.includes("codigo_cadastro")||m.includes("database error saving new user"))
@@ -1054,11 +1156,13 @@ async function runDiagnostics(){
   out.innerHTML=L.join("<br>")}
 async function adminLogout(){
   try{await supa?.auth.signOut()}catch(e){}
+  if(participant&&supa){try{await ensureParticipantSession(participant.id);await rememberSession(participant.id)}catch(e){}}
   adminRows=[];$("adminList").innerHTML='<div class="empty">Carregando…</div>';
   adminShow("admin-auth");toast("Você saiu da área do pesquisador")}
 async function adminCheckSession(){
   if(!supa){adminShow("admin-auth");return}
   try{const{data:s}=await supa.auth.getSession();
+    if(!$("admin-reset-card").classList.contains("hidden"))return;
     if(isResearcherSession(s.session)){adminShow("admin-dash");if(!adminRows.length)adminLoad()}else adminShow("admin-auth")}
   catch(e){adminShow("admin-auth")}}
 async function adminLoad(){
@@ -1073,7 +1177,11 @@ async function adminLoad(){
     adminProfiles={};(pf.data||[]).forEach(p=>adminProfiles[p.participante_id]=p);
     adminRows.forEach(r=>{r._url=pubUrl(r.foto_path);r._audioUrl=pubUrl(r.audio_path)});
     adminRender()
-  }catch(e){console.error(e);$("adminList").innerHTML='<div class="empty">Erro ao carregar. Verifique a configuração.</div>'}}
+  }catch(e){console.error(e);const m=(e?.message||"").toLowerCase();
+    const msg=(e?.code==="PGRST301"||m.includes("jwt")||m.includes("expired"))?"Sessão expirada. Saia e entre novamente.":
+      (m.includes("does not exist")||e?.code==="42P01")?"Tabelas não encontradas. Rode o setup.sql no Supabase.":
+      "Erro ao carregar: "+esc(e?.message||"desconhecido");
+    $("adminList").innerHTML='<div class="empty">'+msg+'</div>'}}
 function adminRender(){
   const q=$("adminSearch").value.trim().toLowerCase();
   const f=q?adminRows.filter(r=>(r.participante_nome||"").toLowerCase().includes(q)):adminRows;
@@ -1124,7 +1232,7 @@ function saveCfg(){
   const url=$("cfgUrl").value.trim(),key=$("cfgKey").value.trim();
   if(!url||!key){toast("Preencha URL e Publishable Key",true);return}
   saveConfig({url,key});
-  const ok=initSupa();
+  const ok=initSupa();watchAuth();
   $("cfgWarn").classList.toggle("hidden",ok);
   $("cfgStatus").textContent=ok?"Configuração salva ✓":"URL ou chave inválida";
   toast(ok?"Configuração salva ✓":"URL ou chave inválida",!ok);
@@ -1133,6 +1241,7 @@ function saveCfg(){
 /* ============ INIT ============ */
 function init(){
   if(!supa)$("cfgWarn").classList.remove("hidden");
+  watchAuth();
   loadCfgUI();
   $("enterBtn").addEventListener("click",enter);
   $("nameInput").addEventListener("keydown",e=>{if(e.key==="Enter")$("codeInput").focus()});
@@ -1154,8 +1263,17 @@ function init(){
   $("adminLogoutLink").addEventListener("click",adminLogout);
   $("adminCfgBtn").addEventListener("click",()=>{loadCfgUI();adminShow("admin-config")});
   $("adminCfgBackBtn").addEventListener("click",()=>adminShow("admin-dash"));
-  $("showSignupBtn").addEventListener("click",()=>adminAuthMode(true));
-  $("showLoginBtn").addEventListener("click",()=>adminAuthMode(false));
+  $("showSignupBtn").addEventListener("click",()=>adminAuthMode("signup"));
+  $("showLoginBtn").addEventListener("click",()=>adminAuthMode("login"));
+  $("showForgotBtn").addEventListener("click",()=>{$("fgEmail").value=$("adminEmail").value.trim();adminAuthMode("forgot")});
+  $("forgotBackBtn").addEventListener("click",()=>adminAuthMode("login"));
+  $("forgotBtn").addEventListener("click",forgotPassword);
+  $("fgEmail").addEventListener("keydown",e=>{if(e.key==="Enter")forgotPassword()});
+  $("resetBtn").addEventListener("click",resetPassword);
+  $("rsPw2").addEventListener("keydown",e=>{if(e.key==="Enter")resetPassword()});
+  $("forgotCodeBtn").addEventListener("click",()=>$("forgotCodeBox").classList.toggle("hidden"));
+  if(RESEARCH_CONTACT)$("forgotContact").textContent="("+RESEARCH_CONTACT+")";
+  if(isRecoveryUrl())enterRecoveryMode();
   $("signupBtn").addEventListener("click",adminSignup);
   $("diagBtn").addEventListener("click",runDiagnostics);
   $("cfgRegCodeBtn").addEventListener("click",saveRegCode);
@@ -1174,10 +1292,11 @@ function init(){
   $("copySqlBtn").addEventListener("click",()=>{
     navigator.clipboard.writeText($("sqlBlock").textContent).then(()=>toast("SQL copiado ✓"))});
   $("cfgSaveBtn").addEventListener("click",saveCfg);
-  const p=loadParticipant();if(p){participant=p;loadProfile().then(pf=>pf?showApp():showProfile())}
-  if("serviceWorker"in navigator){navigator.serviceWorker.register(
-    URL.createObjectURL(new Blob(["self.addEventListener('fetch',e=>e.respondWith(fetch(e.request)));"],
-    {type:"application/javascript"}))).catch(()=>{})}}
+  const p=loadParticipant();if(p){participant=p;
+    (async()=>{if(supa){const{data:s}=await supa.auth.getSession();
+        if(!s.session||isResearcherSession(s.session)){await ensureParticipantSession(p.id);await rememberSession(p.id)}}
+      const pf=await loadProfile();pf?showApp():showProfile()})()}
+  if("serviceWorker"in navigator){navigator.serviceWorker.register("./sw.js").catch(()=>{})}}
 init();
 </script>
 </body>

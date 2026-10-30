@@ -1,9 +1,9 @@
-const CACHE = 'mesada-leo-v23';
-const ARQUIVOS = ['./', './index.html', './manifest.json', './icon-192.png', './icon-512.png', './apple-touch-icon.png'];
+// Diário Alimentar — service worker
+// Estratégia: REDE PRIMEIRO (sempre busca a versão nova do app); cache só como reserva offline.
+// Também apaga qualquer cache antigo (inclusive de outros apps publicados neste mesmo domínio).
+const CACHE = 'diario-alimentar-v2.2';
 
-self.addEventListener('install', e => {
-  e.waitUntil(caches.open(CACHE).then(c => c.addAll(ARQUIVOS)).then(() => self.skipWaiting()));
-});
+self.addEventListener('install', e => { self.skipWaiting(); });
 
 self.addEventListener('activate', e => {
   e.waitUntil(
@@ -12,15 +12,15 @@ self.addEventListener('activate', e => {
   );
 });
 
-// cache-first: funciona offline; rede só quando não tem no cache
 self.addEventListener('fetch', e => {
+  if (e.request.method !== 'GET') return;
+  const url = new URL(e.request.url);
+  // Nunca interceptar chamadas ao Supabase ou a outros domínios
+  if (url.origin !== location.origin) return;
   e.respondWith(
-    caches.match(e.request).then(hit => hit || fetch(e.request).then(resp => {
-      const u = e.request.url; if (e.request.method === 'GET' && (resp.ok || resp.type === 'opaque') && (new URL(u).origin === location.origin || u.includes('cdn.jsdelivr.net'))) {
-        const cp = resp.clone();
-        caches.open(CACHE).then(c => c.put(e.request, cp));
-      }
+    fetch(e.request).then(resp => {
+      if (resp.ok) { const cp = resp.clone(); caches.open(CACHE).then(c => c.put(e.request, cp)); }
       return resp;
-    }).catch(() => caches.match('./index.html')))
+    }).catch(() => caches.match(e.request).then(hit => hit || caches.match('./index.html')))
   );
 });
