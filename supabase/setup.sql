@@ -64,6 +64,10 @@ grant usage on schema public to supabase_auth_admin;
 grant execute on function public.tg_novo_usuario() to supabase_auth_admin;
 grant select on public.config_app to supabase_auth_admin;
 grant insert on public.pesquisadores to supabase_auth_admin;
+-- A função de gatilho não deve ser chamável como RPC por clientes (só o Postgres a dispara)
+revoke execute on function public.tg_novo_usuario() from anon, authenticated, public;
+-- anon não precisa consultar is_pesquisador (as policias a usam internamente, sem depender deste grant)
+revoke execute on function public.is_pesquisador() from anon;
 
 -- 3b) Pré-validação do código pelo app (mensagem clara antes de criar a conta).
 --     Não substitui o gatilho: o gatilho continua sendo a barreira real.
@@ -116,7 +120,7 @@ create policy "pesquisador_le_perfis" on public.participantes
   for select to authenticated using (public.is_pesquisador());
 
 create or replace function public.tg_touch_atualizado()
-returns trigger language plpgsql as $$ begin new.atualizado_em = now(); return new; end $$;
+returns trigger language plpgsql set search_path = public as $$ begin new.atualizado_em = now(); return new; end $$;
 drop trigger if exists participantes_touch on public.participantes;
 create trigger participantes_touch before update on public.participantes
   for each row execute function public.tg_touch_atualizado();
@@ -155,15 +159,17 @@ create policy "ler_registros_pesquisador" on public.registros
 
 -- 7) Bucket "refeicoes" — público para servir fotos/áudios por URL direta (IDs aleatórios);
 --    listar o conteúdo só é possível para pesquisador.
+-- Bucket PRIVADO: fotos/áudios nunca são servidos por URL pública; só por URL assinada,
+-- que a API gera apenas para quem passa na policy de leitura (dono ou pesquisador).
 insert into storage.buckets (id, name, public)
-values ('refeicoes', 'refeicoes', true)
-on conflict (id) do update set public = true;
+values ('refeicoes', 'refeicoes', false)
+on conflict (id) do update set public = false;
 drop policy if exists "upload_fotos" on storage.objects;
 drop policy if exists "ler_fotos"    on storage.objects;
 create policy "upload_fotos" on storage.objects
   for insert to authenticated with check (bucket_id = 'refeicoes');
 create policy "ler_fotos" on storage.objects
-  for select to authenticated using (bucket_id = 'refeicoes' and public.is_pesquisador());
+  for select to authenticated using (bucket_id = 'refeicoes' and (public.is_pesquisador() or owner = auth.uid()));
 
 -- ============================================================
 -- OPCIONAL — se você já criou um usuário manualmente no painel

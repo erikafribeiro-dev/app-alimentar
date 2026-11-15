@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Diário Alimentar v2.2 — 2026-10-30 — esqueci a senha / esqueci o código / sw.js próprio -->
+<!-- Diário Alimentar v2.3 — 2026-11-15 — segurança: bucket privado (URLs assinadas), hardening de funções/RLS -->
 <html lang="pt-BR">
 <head>
 <meta charset="UTF-8" />
@@ -994,7 +994,7 @@ async function send(){
     const row={participante_id:participant.id,participante_nome:participant.name,refeicao:chosenMeal,
       foto_path:fotoPath,audio_path:audioPath,comentario:chosenComment||null,criado_em:now.toISOString()};
     const ins=await supa.from("registros").insert(row);if(ins.error)throw ins.error;
-    storeLocal({meal:chosenMeal,time:row.criado_em,url:pubUrl(fotoPath),audioUrl:pubUrl(audioPath),comment:chosenComment});
+    storeLocal({meal:chosenMeal,time:row.criado_em,url:URL.createObjectURL(chosenFile),audioUrl:chosenAudio?URL.createObjectURL(chosenAudio.blob):null,comment:chosenComment});
     toast(audioPath?"Foto e áudio registrados. Obrigado!":"Foto registrada. Obrigado!");
     resetForm();await loadToday()
   }catch(e){console.error(e);toast("Não foi possível enviar. Verifique a conexão.",true)}
@@ -1004,15 +1004,20 @@ async function send(){
 function localKey(){return"diario_today_"+(participant?.id||"x")+"_"+todayKey()}
 function storeLocal(it){try{const a=JSON.parse(localStorage.getItem(localKey())||"[]");
   a.unshift(it);localStorage.setItem(localKey(),JSON.stringify(a))}catch(e){}}
-function pubUrl(path){if(!path||!supa)return"";const{data}=supa.storage.from(BUCKET).getPublicUrl(path);return data?.publicUrl||""}
+async function signedUrl(path,secs){if(!path||!supa)return"";
+  try{const{data,error}=await supa.storage.from(BUCKET).createSignedUrl(path,secs||3600);return error?"":(data?.signedUrl||"")}catch(e){return""}}
+async function signedUrls(paths,secs){const p=[...new Set(paths.filter(Boolean))];if(!p.length||!supa)return{};
+  try{const{data,error}=await supa.storage.from(BUCKET).createSignedUrls(p,secs||3600);if(error||!data)return{};
+    const m={};data.forEach(d=>{if(d.path&&d.signedUrl&&!d.error)m[d.path]=d.signedUrl});return m}catch(e){return{}}}
 function dayBounds(){const d=new Date();d.setHours(0,0,0,0);const e=new Date(d);e.setDate(e.getDate()+1);return[d.toISOString(),e.toISOString()]}
 async function fetchTodayFromSupa(){
   if(!supa||!participant)return null;
   try{await ensureSession();const[a,b]=dayBounds();
     const{data,error}=await supa.from("registros").select("refeicao,foto_path,audio_path,comentario,criado_em")
       .eq("participante_id",participant.id).gte("criado_em",a).lt("criado_em",b).order("criado_em",{ascending:false});
-    if(error)throw error;
-    return(data||[]).map(r=>({meal:r.refeicao,time:r.criado_em,url:pubUrl(r.foto_path),audioUrl:pubUrl(r.audio_path),comment:r.comentario||""}))}
+    if(error)throw error;const rows=data||[];
+    const urls=await signedUrls([...rows.map(r=>r.foto_path),...rows.map(r=>r.audio_path)]);
+    return rows.map(r=>({meal:r.refeicao,time:r.criado_em,url:urls[r.foto_path]||"",audioUrl:urls[r.audio_path]||"",comment:r.comentario||""}))}
   catch(e){console.error(e);return null}}
 async function loadToday(){
   let local=[];try{local=JSON.parse(localStorage.getItem(localKey())||"[]")}catch(e){}
@@ -1175,7 +1180,8 @@ async function adminLoad(){
       supa.from("participantes").select("*")]);
     if(reg.error)throw reg.error;adminRows=reg.data||[];
     adminProfiles={};(pf.data||[]).forEach(p=>adminProfiles[p.participante_id]=p);
-    adminRows.forEach(r=>{r._url=pubUrl(r.foto_path);r._audioUrl=pubUrl(r.audio_path)});
+    const urls=await signedUrls([...adminRows.map(r=>r.foto_path),...adminRows.map(r=>r.audio_path)]);
+    adminRows.forEach(r=>{r._url=urls[r.foto_path]||"";r._audioUrl=urls[r.audio_path]||""});
     adminRender()
   }catch(e){console.error(e);const m=(e?.message||"").toLowerCase();
     const msg=(e?.code==="PGRST301"||m.includes("jwt")||m.includes("expired"))?"Sessão expirada. Saia e entre novamente.":
@@ -1210,10 +1216,10 @@ function adminRender(){
     "</div></div>").join("")+"</div></div>"}).join("")}
 function csvCell(v){v=v==null?"":String(v);return'"'+v.replace(/"/g,'""')+'"'}
 function exportCSV(){
-  const h=["nome_responsavel","participante_id","nome_pessoa","idade","responsavel","diagnostico","restricoes","contato","refeicao","data_hora","comentario","foto_url","audio_url"];
+  const h=["nome_responsavel","participante_id","nome_pessoa","idade","responsavel","diagnostico","restricoes","contato","refeicao","data_hora","comentario","foto_arquivo","audio_arquivo","foto_url_temporaria_1h","audio_url_temporaria_1h"];
   const P=id=>adminProfiles[id]||{};
   const ls=[h.join(",")].concat(adminRows.map(r=>{const p=P(r.participante_id);return[r.participante_nome,r.participante_id,p.nome_pessoa,p.idade,p.responsavel,p.diagnostico,p.restricoes,p.contato,
-    r.refeicao,r.criado_em,r.comentario||"",r._url,r._audioUrl||""].map(csvCell).join(",")}));
+    r.refeicao,r.criado_em,r.comentario||"",r.foto_path,r.audio_path||"",r._url,r._audioUrl||""].map(csvCell).join(",")}));
   const b=new Blob(["\ufeff"+ls.join("\n")],{type:"text/csv;charset=utf-8"});
   const a=document.createElement("a");a.href=URL.createObjectURL(b);
   a.download="diario_"+todayKey()+".csv";a.click()}

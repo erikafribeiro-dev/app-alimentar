@@ -29,7 +29,7 @@ import zlib
 import pytest
 from playwright.sync_api import sync_playwright
 
-HTML = os.environ.get("APP_HTML", os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "index.html"))
+HTML = os.environ.get("APP_HTML", os.path.join(os.path.dirname(os.path.abspath(__file__)), "index.html"))
 ACCESS_CODE = "DIARIO2026"
 RESEARCHER_EMAIL = "erika@pesquisa.br"
 RESEARCHER_PW = "Senha-Forte-123"
@@ -144,7 +144,10 @@ window.supabase={createClient:(url,key)=>{
         window.__db.uploads.push({bucket,path,size:buf.byteLength,contentType:opts&&opts.contentType});
         return {data:{path},error:null};
       },
-      getPublicUrl:(p)=>({data:{publicUrl:p?("https://test.supabase.co/storage/v1/object/public/"+bucket+"/"+p):""}})
+      getPublicUrl:(p)=>({data:{publicUrl:p?("https://test.supabase.co/storage/v1/object/public/"+bucket+"/"+p):""}}),
+      async createSignedUrl(p,secs){ if(!p) return {data:null,error:{message:"no path"}};
+        return {data:{signedUrl:"https://test.supabase.co/storage/v1/object/sign/"+bucket+"/"+p+"?token=sig"},error:null} },
+      async createSignedUrls(paths,secs){ return {data:(paths||[]).filter(Boolean).map(p=>({path:p,signedUrl:"https://test.supabase.co/storage/v1/object/sign/"+bucket+"/"+p+"?token=sig",error:null})),error:null} }
     })}
   };
 }};
@@ -745,7 +748,7 @@ class TestTimeline:
         t = logged.inner_text("#todayList")
         assert "Almoço" in t and "Recusou a salada" in t and logged.inner_text("#todayCount") == "1 registro"
         assert logged.evaluate("document.querySelectorAll('#todayList audio').length") == 1
-        src = logged.get_attribute("#todayList img", "src"); assert "test.supabase.co" in src
+        src = logged.get_attribute("#todayList img", "src"); assert "test.supabase.co" in src and "/sign/" in src
 
     def test_arco_marca_refeicao_feita(self, logged):
         fill_meal_photo(logged, "Jantar"); send(logged)
@@ -883,7 +886,7 @@ class TestPainel:
         assert raw.startswith(b"\xef\xbb\xbf"), "BOM UTF-8 para o Excel abrir acentos corretamente"
         csv = raw.decode("utf-8-sig")
         lines = csv.splitlines()
-        assert lines[0] == "nome_responsavel,participante_id,nome_pessoa,idade,responsavel,diagnostico,restricoes,contato,refeicao,data_hora,comentario,foto_url,audio_url"
+        assert lines[0] == "nome_responsavel,participante_id,nome_pessoa,idade,responsavel,diagnostico,restricoes,contato,refeicao,data_hora,comentario,foto_arquivo,audio_arquivo,foto_url_temporaria_1h,audio_url_temporaria_1h"
         assert len(lines) == 2 and '"Ana Jr","7","Mãe"' in lines[1]
         assert '"Disse ""não quero"", depois comeu"' in lines[1]
         assert lines[1].count("test.supabase.co") == 2, "foto_url e audio_url preenchidas"
