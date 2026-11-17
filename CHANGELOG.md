@@ -1,5 +1,10 @@
 # Changelog
 
+## v2.4.0 — 2026-11-16
+- Segurança: biblioteca do Supabase (2.119.0) hospedada junto do app em `lib/`, em versão fixa; o CDN fica só como reserva, na mesma versão.
+- Segurança: limite de 15 MB por arquivo no bucket `refeicoes`.
+- Testes com a biblioteca real (sem simulador) e da reserva do CDN.
+
 ## v2.3.2 — 2026-11-16
 - Segurança: código de cadastro de pesquisador trocado no banco e removido do repositório (README, SQL e testes usam apenas marcador/código fictício).
 - Segurança: função de troca do código não é mais alcançável por visitantes sem login.

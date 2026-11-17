@@ -182,7 +182,7 @@ def page(browser):
     pg = ctx.new_page()
     pg.errors = []
     pg.on("pageerror", lambda e: pg.errors.append(str(e)))
-    pg.route("**/supabase-js@2*", lambda r: r.fulfill(status=200, content_type="application/javascript", body=SUPA_SHIM))
+    pg.route("**/lib/supabase-*.js", lambda r: r.fulfill(status=200, content_type="application/javascript", body=SUPA_SHIM))
     pg.route("**/fonts.g*", lambda r: r.fulfill(status=200, content_type="text/css", body=""))
     pg.goto("file://" + HTML)
     pg.wait_for_function("typeof supa !== 'undefined'")
@@ -955,7 +955,7 @@ class TestSessaoEModoDemo:
     def test_modo_demo_quando_biblioteca_nao_carrega(self, browser):
         ctx = browser.new_context(viewport={"width": 390, "height": 844}); pg = ctx.new_page()
         errs = []; pg.on("pageerror", lambda e: errs.append(str(e)))
-        pg.route("**/supabase-js@2*", lambda r: r.abort()); pg.route("**/fonts.g*", lambda r: r.abort())
+        pg.route("**/lib/supabase-*.js", lambda r: r.abort()); pg.route("**/cdn.jsdelivr.net/**", lambda r: r.abort()); pg.route("**/fonts.g*", lambda r: r.abort())
         pg.goto("file://" + HTML); pg.wait_for_timeout(600); pg.evaluate("localStorage.clear()")
         assert pg.evaluate("supa") is None and visible(pg, "#cfgWarn")
         login(pg, "Ana", profile=False); assert visible(pg, "#screen-profile")
@@ -1108,3 +1108,61 @@ class TestJornadaCompleta:
         d = db(logged)
         assert len(d["rows"]) == 1 and len(d["uploads"]) == 1, "toques repetidos não geram refeições repetidas"
         assert logged.inner_text("#todayCount") == "1 registro"
+
+
+# ===========================================================================
+# 12. Biblioteca real do Supabase (cópia fixa em lib/, sem simulador)
+# ===========================================================================
+class TestBibliotecaReal:
+    def _open(self, browser):
+        ctx = browser.new_context(viewport={"width": 390, "height": 844}); pg = ctx.new_page()
+        pg.errors = []; pg.requests = []
+        pg.on("pageerror", lambda e: pg.errors.append(str(e)))
+        pg.on("request", lambda r: pg.requests.append(r.url))
+        pg.route("**/fonts.g*", lambda r: r.fulfill(status=200, content_type="text/css", body=""))
+        pg.goto("file://" + HTML); pg.wait_for_function("typeof supa !== 'undefined'"); pg.wait_for_timeout(400)
+        return ctx, pg
+
+    def test_app_nao_carrega_script_de_terceiros(self):
+        html = open(HTML, encoding="utf-8").read()
+        srcs = re.findall(r'<script[^>]*\ssrc="([^"]+)"', html)
+        assert srcs == ["./lib/supabase-2.119.0.js",
+                        "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.119.0/dist/umd/supabase.js"], srcs  # 2º = reserva, versão fixa
+        assert "supabase-js@2\"" not in html and "supabase-js@2'" not in html, "nenhuma referência a versão flutuante"
+        assert os.path.exists(os.path.join(os.path.dirname(HTML), "lib", "supabase-2.119.0.js"))
+
+    def test_biblioteca_fixada_e_a_do_pacote_oficial(self):
+        import hashlib
+        p = os.path.join(os.path.dirname(HTML), "lib", "supabase-2.119.0.js")
+        assert hashlib.sha256(open(p, "rb").read()).hexdigest() == "a867edbcfb029370aeec7223dd6180b560b621fbe3bc64c6584fb0369d1b7bce"
+
+    def test_biblioteca_real_carrega_e_conecta(self, browser):
+        ctx, pg = self._open(browser)
+        assert pg.errors == []
+        assert pg.evaluate("typeof window.supabase.createClient") == "function"
+        assert pg.evaluate("!!supa") and not visible(pg, "#cfgWarn"), "app conectado, fora do modo demonstração"
+        assert not any("cdn.jsdelivr" in u for u in pg.requests)
+        ctx.close()
+
+    def test_biblioteca_real_tem_tudo_que_o_app_usa(self, browser):
+        ctx, pg = self._open(browser)
+        faltando = pg.evaluate("""()=>{
+          const need={auth:['getSession','signInAnonymously','signInWithPassword','signUp','signOut','setSession','resetPasswordForEmail','updateUser','onAuthStateChange']};
+          const miss=[]; need.auth.forEach(m=>{if(typeof supa.auth[m]!=='function')miss.push('auth.'+m)});
+          if(typeof supa.rpc!=='function')miss.push('rpc');
+          const q=supa.from('registros'); ['select','insert','upsert'].forEach(m=>{if(typeof q[m]!=='function')miss.push('from.'+m)});
+          const sel=supa.from('registros').select('*'); ['eq','gte','lt','order','limit'].forEach(m=>{if(typeof sel[m]!=='function')miss.push('select.'+m)});
+          const st=supa.storage.from('refeicoes'); ['upload','createSignedUrls','createSignedUrl'].forEach(m=>{if(typeof st[m]!=='function')miss.push('storage.'+m)});
+          return miss}""")
+        assert faltando == []
+        ctx.close()
+
+    def test_reserva_do_cdn_entra_quando_a_copia_local_falha(self, browser):
+        ctx = browser.new_context(viewport={"width": 390, "height": 844}); pg = ctx.new_page()
+        real = open(os.path.join(os.path.dirname(HTML), "lib", "supabase-2.119.0.js"), encoding="utf-8").read()
+        pg.route("**/lib/supabase-*.js", lambda r: r.abort())
+        pg.route("**/cdn.jsdelivr.net/npm/@supabase/supabase-js@2.119.0/dist/umd/supabase.js", lambda r: r.fulfill(status=200, content_type="application/javascript", body=real))
+        pg.route("**/fonts.g*", lambda r: r.fulfill(status=200, content_type="text/css", body=""))
+        pg.goto("file://" + HTML); pg.wait_for_function("typeof supa !== 'undefined'"); pg.wait_for_timeout(400)
+        assert pg.evaluate("!!supa") and not visible(pg, "#cfgWarn"), "app continua conectado pela reserva"
+        ctx.close()

@@ -161,9 +161,9 @@ create policy "ler_registros_pesquisador" on public.registros
 --    listar o conteúdo só é possível para pesquisador.
 -- Bucket PRIVADO: fotos/áudios nunca são servidos por URL pública; só por URL assinada,
 -- que a API gera apenas para quem passa na policy de leitura (dono ou pesquisador).
-insert into storage.buckets (id, name, public)
-values ('refeicoes', 'refeicoes', false)
-on conflict (id) do update set public = false;
+insert into storage.buckets (id, name, public, file_size_limit)
+values ('refeicoes', 'refeicoes', false, 15728640)          -- limite de 15 MB por arquivo
+on conflict (id) do update set public = false, file_size_limit = excluded.file_size_limit;
 drop policy if exists "upload_fotos" on storage.objects;
 drop policy if exists "ler_fotos"    on storage.objects;
 create policy "upload_fotos" on storage.objects
