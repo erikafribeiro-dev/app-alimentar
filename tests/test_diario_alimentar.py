@@ -29,7 +29,8 @@ import zlib
 import pytest
 from playwright.sync_api import sync_playwright
 
-HTML = os.environ.get("APP_HTML", os.path.join(os.path.dirname(os.path.abspath(__file__)), "index.html"))
+_HERE = os.path.dirname(os.path.abspath(__file__))
+HTML = os.environ.get("APP_HTML") or next(p for p in (os.path.join(_HERE, "index.html"), os.path.join(_HERE, "..", "index.html")) if os.path.exists(p))
 ACCESS_CODE = "DIARIO2026"
 RESEARCHER_EMAIL = "erika@pesquisa.br"
 RESEARCHER_PW = "Senha-Forte-123"
@@ -749,6 +750,15 @@ class TestTimeline:
         assert "Almoço" in t and "Recusou a salada" in t and logged.inner_text("#todayCount") == "1 registro"
         assert logged.evaluate("document.querySelectorAll('#todayList audio').length") == 1
         src = logged.get_attribute("#todayList img", "src"); assert "test.supabase.co" in src and "/sign/" in src
+
+    def test_nao_duplica_quando_servidor_devolve_horario_em_outro_formato(self, logged):
+        """Regressão: Postgres devolve '+00:00' e o aparelho grava 'Z' — mesmo instante não pode aparecer 2x."""
+        fill_meal_photo(logged, "Almoço"); send(logged)
+        fill_meal_photo(logged, "Jantar"); send(logged)
+        logged.evaluate("window.__db.rows.forEach(r=>r.criado_em=r.criado_em.replace('Z','+00:00'))")
+        logged.evaluate("loadToday()"); logged.wait_for_timeout(500)
+        assert logged.inner_text("#todayCount") == "2 registros"
+        assert logged.evaluate("document.querySelectorAll('#todayList .tl-item').length") == 2
 
     def test_arco_marca_refeicao_feita(self, logged):
         fill_meal_photo(logged, "Jantar"); send(logged)

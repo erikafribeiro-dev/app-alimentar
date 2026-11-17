@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Diário Alimentar v2.3 — 2026-11-15 — segurança: bucket privado (URLs assinadas), hardening de funções/RLS -->
+<!-- Diário Alimentar v2.3.1 — 2026-11-16 — corrige refeições duplicadas em "O dia até agora" -->
 <html lang="pt-BR">
 <head>
 <meta charset="UTF-8" />
@@ -1024,8 +1024,11 @@ async function loadToday(){
   let arr=null;
   if(supa){$("todayList").innerHTML='<div class="empty"><span class="spin" style="border-color:rgba(22,53,46,.2);border-top-color:var(--pine)"></span></div>';arr=await fetchTodayFromSupa()}
   if(arr===null)arr=local;
-  else{const seen=new Set(arr.map(i=>i.time));local.forEach(i=>{if(!seen.has(i.time))arr.push(i)});
-    arr.sort((a,b)=>a.time<b.time?1:-1)}
+  else{ // compara o INSTANTE (ms), não o texto: o servidor devolve "+00:00" e o aparelho grava "Z"
+    const ms=t=>{const n=new Date(t).getTime();return isNaN(n)?String(t):n};
+    const seen=new Set(arr.map(i=>ms(i.time)));
+    local.forEach(i=>{const k=ms(i.time);if(!seen.has(k)){seen.add(k);arr.push(i)}});
+    arr.sort((a,b)=>new Date(b.time)-new Date(a.time))}
   $("todayCount").textContent=arr.length+(arr.length===1?" registro":" registros");
   const list=$("todayList");
   if(!arr.length){list.innerHTML='<div class="empty">O primeiro registro do dia aparece aqui.</div>'}

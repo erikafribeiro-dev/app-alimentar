@@ -1,5 +1,8 @@
 # Changelog
 
+## v2.3.1 — 2026-11-16
+- Corrige refeições duplicadas em "O dia até agora": a cópia local e a do servidor eram comparadas pelo texto do horário (`Z` vs `+00:00`); agora pelo instante.
+
 ## v2.2 — 2026-10-30
 ### Novidades
 - **Esqueci a senha** (pesquisador): link por e-mail → tela "Nova senha" → entra no painel
