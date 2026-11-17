@@ -18,7 +18,7 @@ PWA para coleta de fotos, áudios e comentários de refeições em pesquisa sobr
 | Quem | Credencial | Onde trocar |
 |---|---|---|
 | Participantes | código `DIARIO2026` | `DEFAULT_ACCESS_CODE` no `index.html` |
-| Cadastro de pesquisador | código `Pesquisa@2026` | App → Pesquisador → Configuração → "Trocar código" (fica só no banco) |
+| Cadastro de pesquisador | código definido pela coordenação (fica só no banco, nunca no repositório) | App → Pesquisador → Configuração → "Trocar código" (fica só no banco) |
 | Pesquisadores | e-mail + senha (Supabase Auth); "Esqueci a senha" no app | Supabase → Authentication → Users |
 
 ## Supabase (configuração única)

@@ -16,7 +16,7 @@ create table if not exists public.config_app (
 );
 alter table public.config_app enable row level security;   -- sem policies: ninguém lê via API
 insert into public.config_app (chave, valor)
-values ('codigo_cadastro_pesquisador', 'Pesquisa@2026')
+values ('codigo_cadastro_pesquisador', 'DEFINA_UM_CODIGO_AQUI')   -- ← troque antes de rodar
 on conflict (chave) do nothing;                              -- não sobrescreve se você já trocou
 
 -- 1) Pesquisadores autorizados
@@ -88,7 +88,7 @@ begin
   insert into public.config_app (chave, valor) values ('codigo_cadastro_pesquisador', novo)
   on conflict (chave) do update set valor = excluded.valor;
 end $$;
-revoke all on function public.definir_codigo_cadastro(text) from public;
+revoke all on function public.definir_codigo_cadastro(text) from public, anon;   -- visitante sem login não alcança
 grant execute on function public.definir_codigo_cadastro(text) to authenticated;
 
 -- 5) Perfil dos participantes

@@ -2,13 +2,16 @@
 \set ON_ERROR_STOP on
 \set QUIET on
 
+-- Código de cadastro usado só nestes testes (o setup.sql traz apenas um marcador)
+update public.config_app set valor='codigo-de-teste-123' where chave='codigo_cadastro_pesquisador';
+
 -- ------------------------------------------------------------
 -- T1. Cadastro de pesquisador com código CERTO (como o GoTrue faz)
 -- ------------------------------------------------------------
 set role supabase_auth_admin;
 insert into auth.users (id, email, raw_user_meta_data)
 values ('11111111-1111-1111-1111-111111111111', 'erika@pesquisa.br',
-        '{"nome":"Érika","codigo_cadastro":"Pesquisa@2026"}');
+        '{"nome":"Érika","codigo_cadastro":"codigo-de-teste-123"}');
 reset role;
 do $$ begin
   if not exists (select 1 from public.pesquisadores where user_id='11111111-1111-1111-1111-111111111111' and email='erika@pesquisa.br' and nome='Érika')
@@ -154,7 +157,7 @@ reset role;
 do $$ begin
   begin
     set role supabase_auth_admin;
-    insert into auth.users (id, email, raw_user_meta_data) values ('77777777-7777-7777-7777-777777777777', 'velho@x.com', '{"codigo_cadastro":"Pesquisa@2026"}');
+    insert into auth.users (id, email, raw_user_meta_data) values ('77777777-7777-7777-7777-777777777777', 'velho@x.com', '{"codigo_cadastro":"codigo-de-teste-123"}');
     reset role; raise exception 'T10 FALHOU: código antigo ainda aceito';
   exception when others then reset role; if sqlerrm not like '%codigo_cadastro invalido%' then raise; end if; end;
   if not exists (select 1 from public.pesquisadores where email='novo@pesquisa.br') then raise exception 'T10 FALHOU: novo código não aceito'; end if;
@@ -200,7 +203,7 @@ select test_logout();
 set role anon;
 do $$ begin
   if not public.validar_codigo_cadastro('NovoCodigo2027') then raise exception 'T13 FALHOU: código atual não validado'; end if;
-  if public.validar_codigo_cadastro('Pesquisa@2026') then raise exception 'T13 FALHOU: código antigo validado'; end if;
+  if public.validar_codigo_cadastro('codigo-de-teste-123') then raise exception 'T13 FALHOU: código antigo validado'; end if;
   if public.validar_codigo_cadastro('') then raise exception 'T13 FALHOU: vazio validado'; end if;
   if (select count(*) from public.config_app) <> 0 then raise exception 'T13 FALHOU: anon leu config_app'; end if;
   raise notice 'T13 OK validar_codigo_cadastro responde sem expor o código';

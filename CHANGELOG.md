@@ -1,5 +1,11 @@
 # Changelog
 
+## v2.3.2 — 2026-11-16
+- Segurança: código de cadastro de pesquisador trocado no banco e removido do repositório (README, SQL e testes usam apenas marcador/código fictício).
+- Segurança: função de troca do código não é mais alcançável por visitantes sem login.
+- SQL exibido na tela de Configuração sincronizado com `supabase/setup.sql` (bucket privado, leitura por dono ou pesquisador).
+- Testes: jornada completa participante → pesquisador.
+
 ## v2.3.1 — 2026-11-16
 - Corrige refeições duplicadas em "O dia até agora": a cópia local e a do servidor eram comparadas pelo texto do horário (`Z` vs `+00:00`); agora pelo instante.
 

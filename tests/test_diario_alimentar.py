@@ -34,13 +34,13 @@ HTML = os.environ.get("APP_HTML") or next(p for p in (os.path.join(_HERE, "index
 ACCESS_CODE = "DIARIO2026"
 RESEARCHER_EMAIL = "erika@pesquisa.br"
 RESEARCHER_PW = "Senha-Forte-123"
-REG_CODE = "Pesquisa@2026"
+REG_CODE = "codigo-de-teste-123"
 
 # ---------------------------------------------------------------------------
 # Simulador do supabase-js — grava em window.__db e respeita window.__fail
 # ---------------------------------------------------------------------------
 SUPA_SHIM = r"""
-window.__db = { rows: [], uploads: [], session: null, profiles: [], users: [], regCode: "Pesquisa@2026", researchers: ["res-1"] };
+window.__db = { rows: [], uploads: [], session: null, profiles: [], users: [], regCode: "codigo-de-teste-123", researchers: ["res-1"] };
 // Persistência entre reloads (como o supabase-js faz): banco e sessão em sessionStorage
 try{const saved=JSON.parse(sessionStorage.getItem("__shimdb")||"null");if(saved)Object.assign(window.__db,saved)}catch(e){}
 setInterval(()=>{try{sessionStorage.setItem("__shimdb",JSON.stringify(window.__db))}catch(e){}},100);
@@ -825,7 +825,7 @@ class TestPainel:
 
     def test_senha_nao_esta_no_html(self):
         html = open(HTML, encoding="utf-8").read()
-        assert "Pesquisa@2026" not in html and "DEFAULT_ADMIN_PW" not in html
+        assert "codigo-de-teste-123" not in html and "DEFAULT_ADMIN_PW" not in html
 
     def test_participante_anonimo_nao_ve_registros_dos_outros_no_banco(self, page):
         self.seed(page)  # termina logado como Bruno (anônimo)
