@@ -108,6 +108,7 @@ window.supabase={createClient:(url,key)=>{
       },
       async signUp({email,password,options}){
         const meta=(options&&options.data)||{};
+        if(window.__db.emailRateLimit) return {data:{user:null,session:null},error:{message:"email rate limit exceeded",status:429}};
         if(window.__db.signupsDisabled) return {data:{user:null,session:null},error:{message:"Signups not allowed for this instance",status:422}};
         if(window.__db.users.some(u=>u.email===email)||email===RESEARCHER.email){
           // GoTrue com confirmação de e-mail: anti-enumeração (usuário "fantasma" sem identidades); sem confirmação: erro explícito
@@ -127,7 +128,7 @@ window.supabase={createClient:(url,key)=>{
         if(!window.__db.session) return {data:{user:null},error:{message:"Auth session missing!"}};
         if(password==="MesmaSenha123") return {data:{user:null},error:{message:"New password should be different from the old password."}};
         window.__db.lastPassword=password; return {data:{user:window.__db.session.user},error:null}},
-      async signOut(){window.__db.session=null;(window.__authCbs||[]).forEach(cb=>cb("SIGNED_OUT",null));return {error:null}},
+      async signOut(o){(window.__db.signOuts=window.__db.signOuts||[]).push((o&&o.scope)||"global");window.__db.session=null;(window.__authCbs||[]).forEach(cb=>cb("SIGNED_OUT",null));return {error:null}},
       onAuthStateChange(cb){(window.__authCbs=window.__authCbs||[]).push(cb);return {data:{subscription:{unsubscribe(){}}}}}
     },
     async rpc(fn,args){
@@ -408,9 +409,15 @@ class TestPerfilParticipante:
 
     def test_falha_no_servidor_mantem_tela_de_perfil(self, page):
         login(page, "Ana", profile=False)
-        page.evaluate("window.__db.session=null; window.__fail.signIn=true")
+        page.evaluate("window.__db.session=null; window.__fail.signIn=true; window.__fail.restore=true")
         fill_profile(page)
         assert visible(page, "#screen-profile") and "não foi possível" in toast(page).lower()
+
+    def test_sessao_perdida_e_restaurada_ao_salvar_o_perfil(self, page):
+        login(page, "Ana", profile=False); uid = db(page)["session"]["user"]["id"]
+        page.evaluate("window.__db.session=null")          # sessão caiu, mas o token guardado ainda vale
+        fill_profile(page)
+        assert visible(page, "#screen-app") and db(page)["profiles"][0]["auth_uid"] == uid
 
     def test_participante_nao_le_perfil_de_outro(self, page):
         login(page, "Ana"); page.click("#logoutLink"); page.wait_for_timeout(300); login(page, "Bruno")
@@ -563,7 +570,7 @@ class TestEsqueciSenha:
     def test_rate_limit_traduzido(self, page):
         page.evaluate("window.__fail.reset=true"); page.click('button[data-tab="pesquisador"]'); page.click("#showForgotBtn")
         page.fill("#fgEmail", RESEARCHER_EMAIL); page.click("#forgotBtn"); page.wait_for_timeout(300)
-        assert "muitas tentativas" in toast(page).lower()
+        assert "limite de e-mails" in toast(page).lower()
 
     def _arrive_by_link(self, page):
         # simula sessão de recuperação criada pelo link + evento PASSWORD_RECOVERY
@@ -1166,3 +1173,81 @@ class TestBibliotecaReal:
         pg.goto("file://" + HTML); pg.wait_for_function("typeof supa !== 'undefined'"); pg.wait_for_timeout(400)
         assert pg.evaluate("!!supa") and not visible(pg, "#cfgWarn"), "app continua conectado pela reserva"
         ctx.close()
+
+
+# ===========================================================================
+# 13. Pesquisador e participante no mesmo aparelho; redefinição de senha real
+# ===========================================================================
+RES_SESSION = "{user:{id:'res-1',email:'erika@pesquisa.br',is_anonymous:false},access_token:'at-res',refresh_token:'rt-res'}"
+
+class TestSessaoNoMesmoAparelho:
+    def _reopen(self, pg, suffix=""):
+        pg.wait_for_timeout(300)            # simulador grava o estado
+        pg.goto("about:blank"); pg.goto("file://" + HTML + suffix)
+        pg.wait_for_function("typeof supa !== 'undefined'"); pg.wait_for_timeout(600)
+
+    def test_recarregar_nao_derruba_pesquisador_em_aparelho_que_tambem_e_participante(self, page):
+        login(page, "Ana"); admin_login(page); assert visible(page, "#admin-dash")
+        self._reopen(page)
+        assert db(page)["session"]["user"]["id"] == "res-1", "sessão de pesquisador preservada ao reabrir"
+        assert "global" not in (db(page).get("signOuts") or [])
+        page.click('button[data-tab="pesquisador"]'); page.wait_for_timeout(400)
+        assert visible(page, "#admin-dash")
+        page.click('button[data-tab="participante"]'); assert visible(page, "#screen-app")
+
+    def test_ao_gravar_refeicao_troca_para_a_sessao_do_participante(self, page):
+        login(page, "Ana"); anon = db(page)["session"]["user"]["id"]
+        admin_login(page); self._reopen(page)
+        fill_meal_photo(page, "Almoço"); send(page)
+        d = db(page)
+        assert d["session"]["user"]["is_anonymous"] is True and d["session"]["user"]["id"] == anon, "mesma sessão anônima de antes"
+        assert d["rows"][0]["auth_uid"] == anon, "refeição não fica com o uid do pesquisador"
+
+    def test_link_de_redefinicao_funciona_em_aparelho_com_participante_salvo(self, page):
+        """Regressão do caso real: o app trocava a sessão do link pela do participante e a troca de senha falhava (422)."""
+        login(page, "Ana")
+        page.evaluate("()=>{window.__db.session=" + RES_SESSION + "; window.__db.signOuts=[]}")
+        self._reopen(page, "#access_token=x&refresh_token=y&type=recovery")
+        assert visible(page, "#admin-reset-card")
+        assert db(page)["session"]["user"]["id"] == "res-1" and (db(page).get("signOuts") or []) == []
+        page.fill("#rsPw", "NovaSenha123"); page.fill("#rsPw2", "NovaSenha123"); page.click("#resetBtn"); page.wait_for_timeout(600)
+        assert page.evaluate("window.__db.lastPassword") == "NovaSenha123"
+        assert db(page)["session"]["user"]["id"] == "res-1" and visible(page, "#admin-dash")
+
+    def test_nova_senha_sem_sessao_do_link_orienta_a_pedir_outro(self, page):
+        page.evaluate("enterRecoveryMode()"); page.wait_for_timeout(200)
+        page.fill("#rsPw", "NovaSenha123"); page.fill("#rsPw2", "NovaSenha123"); page.click("#resetBtn"); page.wait_for_timeout(400)
+        assert "expirou" in toast(page).lower() and visible(page, "#admin-forgot-card")
+        assert page.evaluate("window.__db.lastPassword") is None
+
+    def test_nova_senha_nunca_e_aplicada_a_sessao_anonima(self, page):
+        login(page, "Ana"); page.evaluate("enterRecoveryMode()"); page.wait_for_timeout(200)
+        page.fill("#rsPw", "NovaSenha123"); page.fill("#rsPw2", "NovaSenha123"); page.click("#resetBtn"); page.wait_for_timeout(400)
+        assert page.evaluate("window.__db.lastPassword") is None and "expirou" in toast(page).lower()
+
+    def test_link_expirado_abre_pedido_de_novo_link(self, page):
+        self._reopen(page, "#error=access_denied&error_code=otp_expired&error_description=Email+link+is+invalid+or+has+expired")
+        assert visible(page, "#tab-pesquisador") and visible(page, "#admin-forgot-card")
+        assert "expirou" in toast(page).lower() and "error_code" not in page.url
+
+    def test_sair_do_participante_nao_revoga_a_sessao_guardada(self, page):
+        login(page, "Ana"); page.click("#logoutLink"); page.wait_for_timeout(300)
+        outs = db(page)["signOuts"]
+        assert outs and set(outs) == {"local"}, "saídas locais: o token guardado continua válido para voltar"
+
+    def test_renovacao_de_token_atualiza_a_copia_guardada(self, page):
+        login(page, "Ana"); pid = page.evaluate("participant.id"); uid = db(page)["session"]["user"]["id"]
+        page.evaluate("(uid)=>(window.__authCbs||[]).forEach(cb=>cb('TOKEN_REFRESHED',{user:{id:uid,is_anonymous:true},access_token:'at-novo',refresh_token:'rt-novo'}))", uid)
+        saved = page.evaluate("(pid)=>JSON.parse(localStorage.getItem('diario_sess_'+pid))", pid)
+        assert saved == {"a": "at-novo", "r": "rt-novo"}
+
+    def test_cadastro_barrado_por_limite_de_emails_explica_o_motivo(self, page):
+        page.evaluate("window.__db.emailRateLimit=true")
+        _signup_researcher(page)
+        t = toast(page).lower(); assert "confirm email" in t and "limite de e-mails" in t
+        assert not visible(page, "#admin-dash")
+
+    def test_esqueci_a_senha_com_limite_de_emails_explica_o_motivo(self, page):
+        page.evaluate("window.__fail.reset=true"); page.click('button[data-tab="pesquisador"]'); page.click("#showForgotBtn")
+        page.fill("#fgEmail", RESEARCHER_EMAIL); page.click("#forgotBtn"); page.wait_for_timeout(300)
+        assert "limite de e-mails" in toast(page).lower()

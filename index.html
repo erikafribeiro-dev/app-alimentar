@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Diário Alimentar v2.4.0 — 2026-11-16 — biblioteca do Supabase hospedada junto do app (versão fixa) -->
+<!-- Diário Alimentar v2.4.1 — 2026-11-16 — corrige redefinição de senha e sessão de pesquisador em aparelho que também é participante -->
 <html lang="pt-BR">
 <head>
 <meta charset="UTF-8" />
@@ -779,6 +779,8 @@ initSupa();
 function watchAuth(){if(!supa||supa._watched)return;supa._watched=true;
   supa.auth.onAuthStateChange((ev,sess)=>{
     if(ev==="PASSWORD_RECOVERY"){enterRecoveryMode();return}
+    if(sess&&participant&&!isResearcherSession(sess)&&(ev==="TOKEN_REFRESHED"||ev==="SIGNED_IN")){
+      try{localStorage.setItem(sessKey(participant.id),JSON.stringify({a:sess.access_token,r:sess.refresh_token}))}catch(e){}}
     if(ev==="SIGNED_OUT"&&!$("tab-pesquisador").classList.contains("hidden")&&!$("admin-dash").classList.contains("hidden")){
       adminRows=[];adminShow("admin-auth");toast("Sua sessão expirou. Entre novamente.",true)}})}
 async function ensureSession(){if(!supa)return false;
@@ -842,12 +844,18 @@ async function restoreSession(pid){
     return true}catch(e){return false}}
 async function ensureParticipantSession(pid){
   // 1) se há sessão de pesquisador neste aparelho, sai dela (não misturar dados de teste)
-  try{const{data:s}=await supa.auth.getSession();if(s.session&&isResearcherSession(s.session))await supa.auth.signOut()}catch(e){}
+  try{const{data:s}=await supa.auth.getSession();if(s.session&&isResearcherSession(s.session))await supa.auth.signOut({scope:"local"})}catch(e){}
   // 2) tenta restaurar a sessão anônima deste participante
   if(await restoreSession(pid))return true;
   // 3) senão, nova sessão anônima
-  try{await supa.auth.signOut()}catch(e){}
+  try{await supa.auth.signOut({scope:"local"})}catch(e){}
   return ensureSession()}
+/* Garante sessão de PARTICIPANTE só na hora de gravar (perfil/refeição). Se a sessão atual já é a
+   anônima, não mexe; se é de pesquisador (mesmo aparelho) ou não existe, troca para a do participante. */
+async function participantReady(){
+  if(!supa||!participant)return false;
+  try{const{data:s}=await supa.auth.getSession();if(s.session&&!isResearcherSession(s.session))return true}catch(e){}
+  const ok=await ensureParticipantSession(participant.id);if(ok)await rememberSession(participant.id);return ok}
 let participant=null,chosenMeal=null,chosenFile=null,chosenComment="",chosenAudio=null;
 let mediaRecorder=null,audioChunks=[];
 
@@ -895,7 +903,7 @@ async function saveProfile(){
   const prof={participante_id:participant.id,nome_responsavel:participant.name,nome_pessoa:nome,idade:+idade,responsavel:resp,
     diagnostico:$("pfDiag").value||null,restricoes:$("pfRestr").value.trim()||null,contato:$("pfContato").value.trim()||null};
   const btn=$("pfSaveBtn");setLoading(btn,true);
-  try{if(supa){if(!await ensureSession())throw new Error("sem sessão");
+  try{if(supa){if(!await participantReady())throw new Error("sem sessão");
       const{error}=await supa.from("participantes").upsert(prof,{onConflict:"participante_id"});if(error)throw error}
     localStorage.setItem(profileKey(),JSON.stringify(prof));toast("Perfil salvo ✓");showApp()}
   catch(e){console.error(e);toast("Não foi possível salvar o perfil. Tente de novo.",true)}
@@ -907,7 +915,7 @@ function showApp(){
   loadToday()}
 async function logout(){localStorage.removeItem("diario_participant");
   // encerra a sessão anônima para que a próxima pessoa neste aparelho tenha a sua própria
-  if(supa){try{const{data:s}=await supa.auth.getSession();if(s.session&&!isResearcherSession(s.session))await supa.auth.signOut()}catch(e){}}
+  if(supa){try{const{data:s}=await supa.auth.getSession();if(s.session&&!isResearcherSession(s.session))await supa.auth.signOut({scope:"local"})}catch(e){}}
   participant=null;chosenMeal=null;chosenFile=null;resetForm();
   $("screen-app").classList.add("hidden");$("screen-profile").classList.add("hidden");$("screen-login").classList.remove("hidden");
   $("nameInput").value=""}
@@ -984,7 +992,7 @@ async function send(){
     setLoading(btn,false);toast("Registrado! (modo demonstração)");resetForm();loadToday();return}
   setLoading(btn,true);
   try{
-    if(!await ensureSession())throw new Error("sem sessão");
+    if(!await participantReady())throw new Error("sem sessão");
     const dir=participant.id+"/"+todayKey()+"/",base=uid();
     // 1) foto
     const ext=(chosenFile.name.split(".").pop()||"jpg").toLowerCase();
@@ -1077,7 +1085,7 @@ async function forgotPassword(){
   const btn=$("forgotBtn");setLoading(btn,true);
   try{const{error}=await supa.auth.resetPasswordForEmail(email,{redirectTo:appBaseUrl()});
     if(error){const m=(error.message||"").toLowerCase();
-      toast(m.includes("rate limit")||error.status===429?"Muitas tentativas. Aguarde alguns minutos.":"Não foi possível enviar: "+error.message,true);return}
+      toast(m.includes("rate limit")||error.status===429?"O servidor atingiu o limite de e-mails por hora. Aguarde cerca de 1 hora e peça o link de novo.":"Não foi possível enviar: "+error.message,true);return}
     toast("Se este e-mail tiver conta, o link de redefinição foi enviado. Confira também o spam.");
     $("fgEmail").value="";adminAuthMode("login");$("adminEmail").value=email}
   catch(e){console.error(e);toast("Não foi possível enviar. Verifique a conexão.",true)}
@@ -1087,7 +1095,9 @@ async function resetPassword(){
   if(pw.length<8){toast("A senha precisa ter pelo menos 8 caracteres",true);return}
   if(pw!==pw2){toast("As senhas não coincidem",true);return}
   const btn=$("resetBtn");setLoading(btn,true);
-  try{const{error}=await supa.auth.updateUser({password:pw});
+  try{const{data:cur}=await supa.auth.getSession();
+    if(!isResearcherSession(cur.session)){adminAuthMode("forgot");toast("Este link de redefinição expirou ou já foi usado. Peça um novo.",true);return}
+    const{error}=await supa.auth.updateUser({password:pw});
     if(error){const m=(error.message||"").toLowerCase();
       toast(m.includes("same")||m.includes("different")?"A nova senha precisa ser diferente da anterior.":"Não foi possível salvar: "+error.message,true);return}
     $("rsPw").value="";$("rsPw2").value="";history.replaceState(null,"",appBaseUrl());
@@ -1098,6 +1108,7 @@ async function resetPassword(){
   finally{setLoading(btn,false)}}
 async function isAuthorizedResearcher(){try{const{data}=await supa.from("pesquisadores").select("user_id").limit(1);return !!(data&&data.length)}catch(e){return false}}
 // Chegou pelo link do e-mail? (Supabase coloca type=recovery na URL ou dispara PASSWORD_RECOVERY)
+function isAuthErrorUrl(){return /error_code=|error=access_denied/.test(location.hash+location.search)}
 function isRecoveryUrl(){return /type=recovery/.test(location.hash)||/type=recovery/.test(location.search)}
 function enterRecoveryMode(){
   document.querySelectorAll(".nav button").forEach(x=>x.classList.toggle("active",x.dataset.tab==="pesquisador"));
@@ -1108,6 +1119,7 @@ function signupErrorMessage(error){
   if(m.includes("codigo_cadastro")||m.includes("database error saving new user"))
     return"O servidor recusou o cadastro. Confira o código de cadastro; se estiver certo, o SQL de instalação pode não ter sido executado.";
   if(m.includes("already registered")||m.includes("already been registered")||m.includes("already exists"))return"Este e-mail já tem conta. Use 'Já tenho conta'.";
+  if((m.includes("rate limit")||st===429)&&m.includes("email"))return"O servidor não conseguiu enviar o e-mail de confirmação (limite de e-mails por hora). Peça à coordenação para desligar 'Confirm email' no Supabase, ou tente de novo em 1 hora.";
   if(m.includes("signups not allowed")||m.includes("signup is disabled"))return"Cadastro desativado no Supabase (Authentication → Sign In / Providers → 'Allow new users to sign up').";
   if(m.includes("rate limit")||st===429)return"Muitas tentativas. Aguarde alguns minutos e tente de novo.";
   if(m.includes("password"))return"Senha recusada pelo servidor: "+error.message;
@@ -1131,7 +1143,7 @@ async function adminSignup(){
       console.error(v.error);toast("Não foi possível validar o código: "+v.error.message,true);return}
     if(v.data!==true){toast("Código de cadastro inválido",true);return}
     // 2) encerra sessão anônima do aparelho antes de criar a conta
-    try{const{data:s}=await supa.auth.getSession();if(s.session&&!isResearcherSession(s.session))await supa.auth.signOut()}catch(e){}
+    try{const{data:s}=await supa.auth.getSession();if(s.session&&!isResearcherSession(s.session))await supa.auth.signOut({scope:"local"})}catch(e){}
     // 3) cria a conta; o gatilho no banco confere o código de novo e autoriza como pesquisador
     const{data,error}=await supa.auth.signUp({email,password:pw,options:{data:{nome,codigo_cadastro:code}}});
     if(error){console.error(error);toast(signupErrorMessage(error),true);return}
@@ -1292,6 +1304,11 @@ function init(){
   $("forgotCodeBtn").addEventListener("click",()=>$("forgotCodeBox").classList.toggle("hidden"));
   if(RESEARCH_CONTACT)$("forgotContact").textContent="("+RESEARCH_CONTACT+")";
   if(isRecoveryUrl())enterRecoveryMode();
+  else if(isAuthErrorUrl()){history.replaceState(null,"",appBaseUrl());
+    document.querySelectorAll(".nav button").forEach(x=>x.classList.toggle("active",x.dataset.tab==="pesquisador"));
+    $("tab-participante").classList.add("hidden");$("tab-pesquisador").classList.remove("hidden");
+    adminShow("admin-auth");adminAuthMode("forgot");
+    toast("Este link de redefinição expirou ou já foi usado. Peça um novo.",true)}
   $("signupBtn").addEventListener("click",adminSignup);
   $("diagBtn").addEventListener("click",runDiagnostics);
   $("cfgRegCodeBtn").addEventListener("click",saveRegCode);
@@ -1311,8 +1328,9 @@ function init(){
     navigator.clipboard.writeText($("sqlBlock").textContent).then(()=>toast("SQL copiado ✓"))});
   $("cfgSaveBtn").addEventListener("click",saveCfg);
   const p=loadParticipant();if(p){participant=p;
-    (async()=>{if(supa){const{data:s}=await supa.auth.getSession();
-        if(!s.session||isResearcherSession(s.session)){await ensureParticipantSession(p.id);await rememberSession(p.id)}}
+    (async()=>{if(supa&&!isRecoveryUrl()&&!isAuthErrorUrl()){const{data:s}=await supa.auth.getSession();
+        // sem sessão: restaura a do participante. Com sessão de pesquisador: mantém (troca só ao gravar)
+        if(!s.session){await ensureParticipantSession(p.id);await rememberSession(p.id)}}
       const pf=await loadProfile();pf?showApp():showProfile()})()}
   if("serviceWorker"in navigator){navigator.serviceWorker.register("./sw.js").catch(()=>{})}}
 init();

@@ -1,5 +1,12 @@
 # Changelog
 
+## v2.4.1 — 2026-11-16
+- Corrige a redefinição de senha: em aparelho que também tinha um participante salvo, o app trocava a sessão do link pela do participante e a nova senha era recusada.
+- Abrir ou recarregar o app não desconecta mais o pesquisador; a troca para a sessão do participante só acontece ao gravar perfil ou refeição.
+- Saídas de sessão anônima passam a ser locais e a cópia guardada acompanha a renovação de token, para o participante voltar ao mesmo histórico.
+- Link de redefinição expirado ou já usado leva direto ao pedido de novo link.
+- Mensagens claras quando o servidor atinge o limite de e-mails por hora.
+
 ## v2.4.0 — 2026-11-16
 - Segurança: biblioteca do Supabase (2.119.0) hospedada junto do app em `lib/`, em versão fixa; o CDN fica só como reserva, na mesma versão.
 - Segurança: limite de 15 MB por arquivo no bucket `refeicoes`.
