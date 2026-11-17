@@ -11,7 +11,7 @@ PWA para coleta de fotos, áudios e comentários de refeições em pesquisa sobr
 | `sw.js` | Service worker (rede primeiro; limpa caches antigos) |
 | `supabase/setup.sql` | Banco: tabelas, regras de acesso, gatilho de cadastro de pesquisador (idempotente) |
 | `supabase/email-templates/` | Assunto e corpo dos e-mails de redefinição de senha e confirmação |
-| `tests/test_diario_alimentar.py` | 123 testes do app (Playwright + pytest, Supabase simulado) |
+| `tests/test_diario_alimentar.py` | 128 testes do app (Playwright + pytest, Supabase simulado), incluindo a jornada completa participante → pesquisador |
 | `tests/test_setup_sql.sql` | 14 testes do banco num PostgreSQL local emulando o Supabase |
 
 ## Acessos

@@ -994,3 +994,117 @@ class TestSeguranca:
         fill_meal_photo(logged); record_audio(logged); send(logged)
         admin_login(logged)
         assert logged.errors == []
+
+
+# ===========================================================================
+# 11. Jornada completa — participante registra, pesquisador consulta
+# ===========================================================================
+MEALS_DO_DIA = ["Café da manhã", "Lanche da manhã", "Almoço", "Lanche da tarde", "Jantar", "Ceia"]
+
+def _signup_researcher(pg, email="nova@unifesp.br", nome="Nova", pw="SenhaForte1"):
+    pg.click('button[data-tab="pesquisador"]'); pg.wait_for_timeout(200); pg.click("#showSignupBtn")
+    pg.fill("#suEmail", email); pg.fill("#suNome", nome); pg.fill("#suPw", pw); pg.fill("#suPw2", pw); pg.fill("#suCode", REG_CODE)
+    pg.click("#signupBtn"); pg.wait_for_timeout(700)
+
+def _capture_csv(pg):
+    pg.evaluate("""()=>{window.__csv=null; const oc=URL.createObjectURL;
+        URL.createObjectURL=(b)=>{ if(b.type&&b.type.startsWith('text/csv')){ b.arrayBuffer().then(ab=>window.__csv=Array.from(new Uint8Array(ab))) } return oc(b) };
+        HTMLAnchorElement.prototype.click=function(){} }""")
+    pg.click("#csvBtn"); pg.wait_for_function("window.__csv!==null")
+    return bytes(pg.evaluate("window.__csv")).decode("utf-8-sig").splitlines()
+
+def _tiles(pg):
+    return pg.evaluate("Array.from(document.querySelectorAll('#adminList .shot .cap b')).map(b=>b.textContent)")
+
+
+class TestJornadaCompleta:
+    def test_dia_completo_do_participante_chega_inteiro_ao_pesquisador(self, page):
+        # ---------- lado do participante ----------
+        login(page, "Marina", profile=False)
+        fill_profile(page, nome="Leo", idade="9", resp="Pai", diag="TEA — nível 1 de suporte", restr="Não mistura alimentos", contato="marina@exemplo.com")
+        assert visible(page, "#screen-app")
+        for i, meal in enumerate(MEALS_DO_DIA):
+            fill_meal_photo(page, meal)
+            if i % 2 == 0: page.fill("#commentInput", f"Obs {meal}")
+            if meal == "Almoço": record_audio(page)
+            send(page)
+            assert "registrad" in toast(page).lower(), f"envio de {meal} confirmado na tela"
+        fill_meal_photo(page, "Outro"); send(page)
+
+        d = db(page)
+        assert len(d["rows"]) == 7 and len(d["profiles"]) == 1
+        assert len(d["uploads"]) == 8, "7 fotos + 1 áudio"
+        assert len({r["foto_path"] for r in d["rows"]}) == 7, "cada refeição com seu próprio arquivo"
+        assert [r["refeicao"] for r in d["rows"]] == MEALS_DO_DIA + ["Outro"]
+        # lista do dia: 7 itens, sem repetição, arco completo
+        assert page.inner_text("#todayCount") == "7 registros"
+        assert page.evaluate("document.querySelectorAll('#todayList .tl-item').length") == 7
+        assert page.evaluate("document.querySelectorAll('.arc-dot.done').length") == len(MEALS_DO_DIA)
+        assert page.evaluate("parseFloat(document.getElementById('arcFill').style.width)") == 100
+        # formato de horário do servidor real + reabrir o app: continua sem duplicar
+        page.evaluate("window.__db.rows.forEach(r=>r.criado_em=r.criado_em.replace('Z','+00:00'))")
+        page.wait_for_timeout(250); page.reload(); page.wait_for_function("typeof supa !== 'undefined'"); page.wait_for_timeout(700)
+        assert visible(page, "#screen-app") and page.inner_text("#todayCount") == "7 registros"
+        assert page.evaluate("document.querySelectorAll('#todayList .tl-item').length") == 7
+
+        # ---------- lado do pesquisador ----------
+        _signup_researcher(page)
+        assert visible(page, "#admin-dash"), toast(page)
+        assert page.inner_text("#sPeople") == "1" and page.inner_text("#sPhotos") == "7" and page.inner_text("#sToday") == "7"
+        tiles = _tiles(page)
+        assert len(tiles) == 7 and sorted(tiles) == sorted(MEALS_DO_DIA + ["Outro"]), "uma foto por refeição, sem duplicar"
+        head = page.inner_text("#adminList .person-h")
+        for k in ("Marina", "Leo, 9 anos", "Pai", "TEA — nível 1 de suporte", "Não mistura alimentos", "marina@exemplo.com", "7 registro(s)"):
+            assert k in head, k
+        body = page.inner_text("#adminList")
+        for meal in ("Café da manhã", "Almoço", "Jantar"): assert f"Obs {meal}" in body
+        assert page.evaluate("document.querySelectorAll('#adminList audio').length") == 1
+        srcs = page.evaluate("Array.from(document.querySelectorAll('#adminList .shot img')).map(i=>i.getAttribute('src'))")
+        assert len(set(srcs)) == 7 and all("token=" in s for s in srcs), "cada foto com seu link assinado"
+        lines = _capture_csv(page)
+        assert len(lines) == 8, "cabeçalho + 7 refeições"
+        assert all('"Leo","9","Pai"' in l for l in lines[1:]) and sum("Obs " in l for l in lines[1:]) == 3
+
+    def test_dois_participantes_isolados_e_pesquisador_ve_ambos(self, page):
+        login(page, "Ana"); fill_meal_photo(page, "Almoço"); send(page); fill_meal_photo(page, "Jantar"); send(page)
+        page.click("#logoutLink"); page.wait_for_timeout(300)
+        login(page, "Bruno"); fill_meal_photo(page, "Ceia"); send(page)
+        # participante só enxerga o que é dele (na tela e na API)
+        assert page.inner_text("#todayCount") == "1 registro" and "Ceia" in page.inner_text("#todayList")
+        own = page.evaluate("(async()=>{const {data}=await supa.from('registros').select('*');return data.map(r=>r.participante_nome)})()")
+        assert own == ["Bruno"]
+        # pesquisador vê os dois, separados por pessoa
+        admin_login(page)
+        assert page.inner_text("#sPeople") == "2" and page.inner_text("#sPhotos") == "3"
+        groups = page.evaluate("Array.from(document.querySelectorAll('#adminList .person')).map(p=>[p.querySelector('.person-h b').textContent, p.querySelectorAll('.shot').length])")
+        assert sorted(groups) == [["Ana", 2], ["Bruno", 1]]
+        page.fill("#adminSearch", "ana"); page.wait_for_timeout(200)
+        assert _tiles(page) and sorted(_tiles(page)) == ["Almoço", "Jantar"]
+        # pesquisador sai; participante volta e continua vendo só o dele
+        page.fill("#adminSearch", ""); page.click("#adminLogoutLink"); page.wait_for_timeout(400)
+        page.click('button[data-tab="participante"]'); page.wait_for_timeout(300)
+        assert visible(page, "#screen-app") and db(page)["session"]["user"]["is_anonymous"] is True
+        page.evaluate("loadToday()"); page.wait_for_timeout(400)
+        assert page.inner_text("#todayCount") == "1 registro"
+
+    def test_painel_atualiza_sem_duplicar(self, page):
+        login(page, "Ana"); fill_meal_photo(page, "Almoço"); send(page)
+        admin_login(page); assert len(_tiles(page)) == 1
+        page.click("#refreshBtn"); page.wait_for_timeout(400); page.click("#refreshBtn"); page.wait_for_timeout(400)
+        assert len(_tiles(page)) == 1, "atualizar não acumula fotos repetidas"
+        # chega um registro novo de outra família enquanto o painel está aberto
+        page.evaluate("""window.__db.rows.push({participante_id:'p-outra',participante_nome:'Carla',refeicao:'Jantar',
+            foto_path:'p-outra/2026-11-16/z.jpg',audio_path:null,comentario:'novo',auth_uid:'anon-outra',criado_em:new Date().toISOString()})""")
+        page.click("#refreshBtn"); page.wait_for_timeout(500)
+        assert sorted(_tiles(page)) == ["Almoço", "Jantar"] and page.inner_text("#sPeople") == "2"
+        # trocar de aba e voltar também não duplica
+        page.click('button[data-tab="participante"]'); page.click('button[data-tab="pesquisador"]'); page.wait_for_timeout(400)
+        assert len(_tiles(page)) == 2
+
+    def test_toque_duplo_em_enviar_grava_uma_vez(self, logged):
+        fill_meal_photo(logged, "Almoço")
+        logged.evaluate("()=>{const b=document.getElementById('sendBtn');b.click();b.click();b.click()}")
+        logged.wait_for_timeout(1200)
+        d = db(logged)
+        assert len(d["rows"]) == 1 and len(d["uploads"]) == 1, "toques repetidos não geram refeições repetidas"
+        assert logged.inner_text("#todayCount") == "1 registro"
